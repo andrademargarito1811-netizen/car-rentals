@@ -26,19 +26,6 @@ pipeline {
             }
         }
 
-        stage('Stop Nginx & PHP') {
-            steps {
-                powershell """
-                    Write-Output "Stopping nginx..."
-                    Get-Service -Name "nginx" -ErrorAction SilentlyContinue | Stop-Service -Force
-                    Get-Process -Name "nginx" -ErrorAction SilentlyContinue | Stop-Process -Force
-                    Write-Output "Stopping PHP-FPM..."
-                    Get-Service -Name "php*" -ErrorAction SilentlyContinue | Stop-Service -Force
-                    Get-Process -Name "php*" -ErrorAction SilentlyContinue | Stop-Process -Force
-                """
-            }
-        }
-
         stage('Backup & Copy Files') {
             steps {
                 bat """
@@ -67,33 +54,22 @@ pipeline {
             }
         }
 
-        stage('Migrate & Optimize') {
+        stage('Optimize') {
             steps {
                 bat """
                     cd /d "%WEBROOT%"
-                    php artisan migrate --force
                     php artisan optimize
                 """
             }
         }
 
-        stage('Start Nginx & PHP') {
+        stage('Restart Nginx & PHP') {
             steps {
                 powershell """
-                    Write-Output "Starting PHP-FPM..."
-                    $phpService = Get-Service -Name "php*" -ErrorAction SilentlyContinue
-                    if ($phpService) {
-                        Start-Service -Name $phpService.Name
-                    } else {
-                        Write-Output "PHP service not found, please start PHP-FPM manually"
-                    }
-                    Write-Output "Starting nginx..."
-                    $nginxService = Get-Service -Name "nginx" -ErrorAction SilentlyContinue
-                    if ($nginxService) {
-                        Start-Service -Name "nginx"
-                    } else {
-                        Write-Output "nginx service not found, please start nginx manually"
-                    }
+                    Write-Output "Restarting PHP-FPM..."
+                    Restart-Service -Name "php*" -Force
+                    Write-Output "Restarting nginx..."
+                    Restart-Service -Name "nginx" -Force
                 """
             }
         }
