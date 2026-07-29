@@ -99,7 +99,6 @@ Route::post('admin/logout', [AdminAuthController::class, 'destroy'])->name('admi
 // Admin routes
 Route::middleware(['auth', 'verified', 'role:admin', 'throttle:300,1'])->prefix('admin')->name('admin.')->group(function () {
     Route::get('/', [AdminDashboardController::class, 'index'])->name('dashboard');
-    Route::get('/dashboard', [AdminDashboardController::class, 'index'])->name('dashboard');
     Route::get('/dashboard/export', [AdminDashboardController::class, 'export'])->name('dashboard.export');
 
     // Admin - Cars
