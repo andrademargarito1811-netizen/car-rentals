@@ -34,9 +34,9 @@ pipeline {
                         Install-WindowsFeature -Name Web-Scripting-Tools -IncludeManagementTools
                     }
                     Import-Module WebAdministration
-                    if (Get-Website -Name "$env:SITE_NAME" | Where-Object { \$_.state -eq 'Started' }) {
-                        Stop-Website -Name "$env:SITE_NAME"
-                        Stop-WebAppPool -Name "$env:SITE_NAME"
+                    if (Get-Website -Name "\$env:SITE_NAME" | Where-Object { \$_.state -eq 'Started' }) {
+                        Stop-Website -Name "\$env:SITE_NAME"
+                        Stop-WebAppPool -Name "\$env:SITE_NAME"
                     }
                 """
             }
@@ -88,8 +88,8 @@ pipeline {
                         Install-WindowsFeature -Name Web-Scripting-Tools -IncludeManagementTools
                     }
                     Import-Module WebAdministration
-                    Start-WebAppPool -Name "$env:SITE_NAME"
-                    Start-Website -Name "$env:SITE_NAME"
+                    Start-WebAppPool -Name "\$env:SITE_NAME"
+                    Start-Website -Name "\$env:SITE_NAME"
                 """
             }
         }
