@@ -63,16 +63,6 @@ pipeline {
             }
         }
 
-        stage('Restart Nginx & PHP') {
-            steps {
-                powershell """
-                    Write-Output "Restarting PHP-FPM..."
-                    Restart-Service -Name "php*" -Force
-                    Write-Output "Restarting nginx..."
-                    Restart-Service -Name "nginx" -Force
-                """
-            }
-        }
     }
 
     post {
