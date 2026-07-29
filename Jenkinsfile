@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         SITE_NAME = "${env.BRANCH_NAME == 'uat' ? 'car-rentals-uat' : 'car-rentals'}"
-        WEBROOT = "C:\\inetpub\\wwwroot\\${SITE_NAME}"
+        WEBROOT = "C:\\WebProject\\${SITE_NAME}"
     }
 
     stages {
@@ -26,18 +26,15 @@ pipeline {
             }
         }
 
-        stage('Stop IIS Site') {
+        stage('Stop Nginx & PHP') {
             steps {
                 powershell """
-                    if (-not (Get-Module -ListAvailable -Name WebAdministration)) {
-                        Write-Output "WebAdministration module not available - installing IIS PowerShell feature..."
-                        Install-WindowsFeature -Name Web-Scripting-Tools -IncludeManagementTools
-                    }
-                    Import-Module WebAdministration
-                    if (Get-Website -Name "\$env:SITE_NAME" | Where-Object { \$_.state -eq 'Started' }) {
-                        Stop-Website -Name "\$env:SITE_NAME"
-                        Stop-WebAppPool -Name "\$env:SITE_NAME"
-                    }
+                    Write-Output "Stopping nginx..."
+                    Get-Service -Name "nginx" -ErrorAction SilentlyContinue | Stop-Service -Force
+                    Get-Process -Name "nginx" -ErrorAction SilentlyContinue | Stop-Process -Force
+                    Write-Output "Stopping PHP-FPM..."
+                    Get-Service -Name "php*" -ErrorAction SilentlyContinue | Stop-Service -Force
+                    Get-Process -Name "php*" -ErrorAction SilentlyContinue | Stop-Process -Force
                 """
             }
         }
@@ -53,7 +50,7 @@ pipeline {
                     if exist "%WORKSPACE%\\.env_backup" (
                         move /Y "%WORKSPACE%\\.env_backup" "%WEBROOT%\\.env"
                     )
-                    icacls "%WEBROOT%\\storage" /grant "IIS_IUSRS:(OI)(CI)M" /Q
+                    icacls "%WEBROOT%\\storage" /grant "Users:(OI)(CI)M" /Q
                 """
             }
         }
@@ -80,16 +77,23 @@ pipeline {
             }
         }
 
-        stage('Start IIS Site') {
+        stage('Start Nginx & PHP') {
             steps {
                 powershell """
-                    if (-not (Get-Module -ListAvailable -Name WebAdministration)) {
-                        Write-Output "WebAdministration module not available - installing IIS PowerShell feature..."
-                        Install-WindowsFeature -Name Web-Scripting-Tools -IncludeManagementTools
+                    Write-Output "Starting PHP-FPM..."
+                    $phpService = Get-Service -Name "php*" -ErrorAction SilentlyContinue
+                    if ($phpService) {
+                        Start-Service -Name $phpService.Name
+                    } else {
+                        Write-Output "PHP service not found, please start PHP-FPM manually"
                     }
-                    Import-Module WebAdministration
-                    Start-WebAppPool -Name "\$env:SITE_NAME"
-                    Start-Website -Name "\$env:SITE_NAME"
+                    Write-Output "Starting nginx..."
+                    $nginxService = Get-Service -Name "nginx" -ErrorAction SilentlyContinue
+                    if ($nginxService) {
+                        Start-Service -Name "nginx"
+                    } else {
+                        Write-Output "nginx service not found, please start nginx manually"
+                    }
                 """
             }
         }
