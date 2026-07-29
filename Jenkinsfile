@@ -4,6 +4,10 @@ pipeline {
     environment {
         SITE_NAME = "${env.BRANCH_NAME == 'uat' ? 'car-rentals-uat' : 'car-rentals'}"
         WEBROOT = "C:\\WebProject\\${SITE_NAME}"
+        REVERB_APP_KEY = 'im9l8ubimmyrik9sdnhr'
+        REVERB_HOST = "${env.BRANCH_NAME == 'uat' ? 'localhost' : 'localhost'}"
+        REVERB_PORT = "${env.BRANCH_NAME == 'uat' ? '8081' : '8081'}"
+        REVERB_SCHEME = "${env.BRANCH_NAME == 'uat' ? 'http' : 'http'}"
     }
 
     stages {
@@ -22,7 +26,13 @@ pipeline {
         stage('NPM Install & Build') {
             steps {
                 bat 'npm ci'
-                bat 'npm run build'
+                bat """
+                    set VITE_REVERB_APP_KEY=%REVERB_APP_KEY%
+                    set VITE_REVERB_HOST=%REVERB_HOST%
+                    set VITE_REVERB_PORT=%REVERB_PORT%
+                    set VITE_REVERB_SCHEME=%REVERB_SCHEME%
+                    npm run build
+                """
             }
         }
 
