@@ -5,9 +5,9 @@ pipeline {
         SITE_NAME = "${env.BRANCH_NAME == 'uat' ? 'car-rentals-uat' : 'car-rentals'}"
         WEBROOT = "C:\\WebProject\\${SITE_NAME}"
         REVERB_APP_KEY = 'im9l8ubimmyrik9sdnhr'
-        REVERB_HOST = "${env.BRANCH_NAME == 'uat' ? 'localhost' : 'localhost'}"
-        REVERB_PORT = "${env.BRANCH_NAME == 'uat' ? '8081' : '8081'}"
-        REVERB_SCHEME = "${env.BRANCH_NAME == 'uat' ? 'http' : 'http'}"
+        REVERB_HOST = "${env.BRANCH_NAME == 'uat' ? 'localhost' : '192.168.0.130'}"
+        REVERB_PORT = "${env.BRANCH_NAME == 'uat' ? '8081' : '446'}"
+        REVERB_SCHEME = "${env.BRANCH_NAME == 'uat' ? 'http' : 'https'}"
     }
 
     stages {
