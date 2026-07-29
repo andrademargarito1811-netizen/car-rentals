@@ -2,7 +2,8 @@ pipeline {
     agent any
 
     environment {
-        WEBROOT = "${env.BRANCH_NAME == 'uat' ? 'C:\\inetpub\\wwwroot\\car-rentals-uat' : 'C:\\inetpub\\wwwroot\\car-rentals'}"
+        SITE_NAME = "${env.BRANCH_NAME == 'uat' ? 'car-rentals-uat' : 'car-rentals'}"
+        WEBROOT = "C:\\inetpub\\wwwroot\\${SITE_NAME}"
     }
 
     stages {
@@ -25,18 +26,27 @@ pipeline {
             }
         }
 
-        stage('Copy Files') {
+        stage('Stop IIS Site') {
+            steps {
+                bat """
+                    appcmd stop site "%SITE_NAME%"
+                    appcmd stop apppool "%SITE_NAME%"
+                """
+            }
+        }
+
+        stage('Backup & Copy Files') {
             steps {
                 bat """
                     if exist "%WEBROOT%" (
-                        move /Y "%WEBROOT%\\storage" "%WORKSPACE%\\storage_backup"
+                        if exist "%WEBROOT%\\.env" copy "%WEBROOT%\\.env" "%WORKSPACE%\\.env_backup"
                         rmdir /S /Q "%WEBROOT%"
                     )
                     xcopy /E /I /Y "." "%WEBROOT%"
-                    if exist "%WORKSPACE%\\storage_backup" (
-                        xcopy /E /Y "%WORKSPACE%\\storage_backup\\*" "%WEBROOT%\\storage\\"
-                        rmdir /S /Q "%WORKSPACE%\\storage_backup"
+                    if exist "%WORKSPACE%\\.env_backup" (
+                        move /Y "%WORKSPACE%\\.env_backup" "%WEBROOT%\\.env"
                     )
+                    icacls "%WEBROOT%\\storage" /grant "IIS_IUSRS:(OI)(CI)M" /Q
                 """
             }
         }
@@ -63,19 +73,19 @@ pipeline {
             }
         }
 
-        stage('Restart IIS') {
+        stage('Start IIS Site') {
             steps {
-                bat 'iisreset /restart'
+                bat """
+                    appcmd start apppool "%SITE_NAME%"
+                    appcmd start site "%SITE_NAME%"
+                """
             }
         }
     }
 
     post {
         failure {
-            bat """
-                echo "Build failed on branch ${env.BRANCH_NAME}"
-                exit /b 1
-            """
+            echo "Build failed on branch ${env.BRANCH_NAME}"
         }
     }
 }
