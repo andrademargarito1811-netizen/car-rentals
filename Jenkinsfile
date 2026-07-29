@@ -29,6 +29,10 @@ pipeline {
         stage('Stop IIS Site') {
             steps {
                 powershell """
+                    if (-not (Get-Module -ListAvailable -Name WebAdministration)) {
+                        Write-Output "WebAdministration module not available - installing IIS PowerShell feature..."
+                        Install-WindowsFeature -Name Web-Scripting-Tools -IncludeManagementTools
+                    }
                     Import-Module WebAdministration
                     if (Get-Website -Name "$env:SITE_NAME" | Where-Object { \$_.state -eq 'Started' }) {
                         Stop-Website -Name "$env:SITE_NAME"
@@ -79,6 +83,10 @@ pipeline {
         stage('Start IIS Site') {
             steps {
                 powershell """
+                    if (-not (Get-Module -ListAvailable -Name WebAdministration)) {
+                        Write-Output "WebAdministration module not available - installing IIS PowerShell feature..."
+                        Install-WindowsFeature -Name Web-Scripting-Tools -IncludeManagementTools
+                    }
                     Import-Module WebAdministration
                     Start-WebAppPool -Name "$env:SITE_NAME"
                     Start-Website -Name "$env:SITE_NAME"
