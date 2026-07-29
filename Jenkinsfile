@@ -28,9 +28,12 @@ pipeline {
 
         stage('Stop IIS Site') {
             steps {
-                bat """
-                    appcmd stop site "%SITE_NAME%"
-                    appcmd stop apppool "%SITE_NAME%"
+                powershell """
+                    Import-Module WebAdministration
+                    if (Get-Website -Name "$env:SITE_NAME" | Where-Object { \$_.state -eq 'Started' }) {
+                        Stop-Website -Name "$env:SITE_NAME"
+                        Stop-WebAppPool -Name "$env:SITE_NAME"
+                    }
                 """
             }
         }
@@ -75,9 +78,10 @@ pipeline {
 
         stage('Start IIS Site') {
             steps {
-                bat """
-                    appcmd start apppool "%SITE_NAME%"
-                    appcmd start site "%SITE_NAME%"
+                powershell """
+                    Import-Module WebAdministration
+                    Start-WebAppPool -Name "$env:SITE_NAME"
+                    Start-Website -Name "$env:SITE_NAME"
                 """
             }
         }
