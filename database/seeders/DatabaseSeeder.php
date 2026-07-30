@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Faq;
+use App\Models\Testimonial;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
@@ -80,6 +81,14 @@ class DatabaseSeeder extends Seeder
                 ['question' => 'What is the fuel policy?', 'answer' => 'Our vehicles are provided with a full tank. We ask that you return the car with a full tank to avoid a refueling charge. Fuel service options are available at checkout.', 'category' => 'Policies', 'popular' => false, 'is_active' => true, 'sort_order' => 4, 'created_at' => now(), 'updated_at' => now()],
                 ['question' => 'Can I add an additional driver?', 'answer' => 'Yes, additional drivers can be added for a small daily fee. They must meet the same requirements as the primary driver and be present at pickup to sign the agreement.', 'category' => 'Requirements', 'popular' => false, 'is_active' => true, 'sort_order' => 5, 'created_at' => now(), 'updated_at' => now()],
                 ['question' => 'How do I modify or cancel my reservation?', 'answer' => 'You can modify or cancel your reservation up to 24 hours before your scheduled pickup at no charge. Contact our support team or manage your booking online.', 'category' => 'Reservations', 'popular' => true, 'is_active' => true, 'sort_order' => 6, 'created_at' => now(), 'updated_at' => now()],
+            ]);
+        }
+
+        if (Testimonial::count() === 0) {
+            Testimonial::insert([
+                ['name' => 'Sarah Johnson', 'role' => 'Business Traveler', 'content' => 'Absolutely seamless experience. The car was pristine and the service was outstanding.', 'rating' => 5, 'sort_order' => 0, 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+                ['name' => 'Michael Chen', 'role' => 'Family Vacation', 'content' => 'Best rental experience we have ever had. Affordable rates and excellent vehicles.', 'rating' => 5, 'sort_order' => 1, 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+                ['name' => 'Emma Davis', 'role' => 'Weekend Explorer', 'content' => 'Quick pickup, great car, and hassle-free return. Will definitely use again!', 'rating' => 5, 'sort_order' => 2, 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
             ]);
         }
     }

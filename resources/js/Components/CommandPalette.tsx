@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { router, usePage } from '@inertiajs/react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
-import { Search, LayoutDashboard, Truck, Calendar, FileText, Tag, Percent, Image, Layout, CircleHelp, CalendarRange, MapPin, Mail, MessageCircle, Users, Car, Command } from 'lucide-react';
+import { Search, LayoutDashboard, Truck, Calendar, FileText, Tag, Percent, Image, Layout, CalendarRange, MapPin, Mail, MessageCircle, Users, Car, Command } from 'lucide-react';
 
 interface NavItem {
     label: string;
@@ -13,7 +13,7 @@ interface NavItem {
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
     LayoutDashboard, Truck, Calendar, FileText, Tag, Percent, Image,
-    Layout, CircleHelp, CalendarRange, MapPin, Mail, MessageCircle, Users, Car,
+    Layout, CalendarRange, MapPin, Mail, MessageCircle, Users, Car,
 };
 
 const navItems: NavItem[] = [
@@ -28,7 +28,6 @@ const navItems: NavItem[] = [
     { section: 'Management', label: 'Vehicle Classes', href: 'admin.vehicle-classes.index', icon: 'Car', group: 'Settings' },
     { section: 'Management', label: 'Page Customization', href: 'admin.hero-settings', icon: 'Image', group: 'Settings' },
     { section: 'Management', label: 'Footer Settings', href: 'admin.footer-settings', icon: 'Layout', group: 'Settings' },
-    { section: 'Management', label: 'FAQ Management', href: 'admin.faqs.index', icon: 'CircleHelp', group: 'Settings' },
     { section: 'Management', label: 'Reservation Settings', href: 'admin.reservation-settings', icon: 'CalendarRange', group: 'Settings' },
     { section: 'Management', label: 'Locations Settings', href: 'admin.locations.index', icon: 'MapPin', group: 'Settings' },
     { section: 'Management', label: 'Contact Messages', href: 'admin.contact-messages.index', icon: 'Mail', group: 'Support' },

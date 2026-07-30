@@ -25,6 +25,7 @@ use App\Http\Controllers\Admin\WhyChooseUsController as AdminWhyChooseUsControll
 use App\Http\Controllers\Admin\ContactMessageController as AdminContactMessageController;
 use App\Http\Controllers\Admin\FleetPageSettingController as AdminFleetPageSettingController;
 use App\Http\Controllers\Admin\AboutUsSettingController as AdminAboutUsSettingController;
+use App\Http\Controllers\Admin\TestimonialController as AdminTestimonialController;
 use App\Http\Controllers\Chat\ChatController;
 use Illuminate\Support\Facades\Route;
 
@@ -174,6 +175,13 @@ Route::middleware(['auth', 'verified', 'role:admin', 'throttle:300,1'])->prefix(
     Route::post('/faqs', [AdminFaqController::class, 'store'])->name('faqs.store');
     Route::put('/faqs/{faq}', [AdminFaqController::class, 'update'])->name('faqs.update');
     Route::delete('/faqs/{faq}', [AdminFaqController::class, 'destroy'])->name('faqs.destroy');
+    Route::post('/faqs/reorder', [AdminFaqController::class, 'reorder'])->name('faqs.reorder');
+
+    // Admin - Testimonials Management
+    Route::post('/testimonials', [AdminTestimonialController::class, 'store'])->name('testimonials.store');
+    Route::put('/testimonials/{testimonial}', [AdminTestimonialController::class, 'update'])->name('testimonials.update');
+    Route::delete('/testimonials/{testimonial}', [AdminTestimonialController::class, 'destroy'])->name('testimonials.destroy');
+    Route::post('/testimonials/reorder', [AdminTestimonialController::class, 'reorder'])->name('testimonials.reorder');
 
     // Admin - Footer Settings
     Route::get('/footer-settings', [AdminFooterSettingController::class, 'index'])->name('footer-settings');

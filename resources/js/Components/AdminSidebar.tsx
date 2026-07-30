@@ -4,7 +4,7 @@ import Dropdown from '@/Components/Dropdown';
 import DropdownLink from '@/Components/DropdownLink';
 import {
     LayoutDashboard, Truck, Calendar, FileText, Tag, Percent, Image,
-    Layout, CircleHelp, CalendarRange, MapPin, Mail,     MessageCircle, Users, Car,
+    Layout, CalendarRange, MapPin, Mail,     MessageCircle, Users, Car,
     ChevronDown,
 } from 'lucide-react';
 
@@ -19,7 +19,7 @@ interface NavItem {
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
     LayoutDashboard, Truck, Calendar, FileText, Tag, Percent, Image,
-    Layout, CircleHelp, CalendarRange, MapPin, Mail, MessageCircle, Users, Car,
+    Layout, CalendarRange, MapPin, Mail, MessageCircle, Users, Car,
 };
 
 const navItems: NavItem[] = [
@@ -34,7 +34,6 @@ const navItems: NavItem[] = [
     { section: 'Management', label: 'Vehicle Classes', href: 'admin.vehicle-classes.index', icon: 'Car', admin: true, group: 'Settings' },
     { section: 'Management', label: 'Page Customization', href: 'admin.hero-settings', icon: 'Image', admin: true, group: 'Settings' },
     { section: 'Management', label: 'Footer Settings', href: 'admin.footer-settings', icon: 'Layout', admin: true, group: 'Settings' },
-    { section: 'Management', label: 'FAQ Management', href: 'admin.faqs.index', icon: 'CircleHelp', admin: true, group: 'Settings' },
     { section: 'Management', label: 'Reservation Settings', href: 'admin.reservation-settings', icon: 'CalendarRange', admin: true, group: 'Settings' },
     { section: 'Management', label: 'Locations Settings', href: 'admin.locations.index', icon: 'MapPin', admin: true, group: 'Settings' },
     { section: 'Management', label: 'Contact Messages', href: 'admin.contact-messages.index', icon: 'Mail', group: 'Support' },

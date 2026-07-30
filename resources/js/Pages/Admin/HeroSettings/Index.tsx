@@ -113,9 +113,32 @@ interface WhyChooseUsItem {
     is_active: boolean;
 }
 
+interface FaqItem {
+    id: number;
+    question: string;
+    answer: string;
+    category: string;
+    popular: boolean;
+    is_active: boolean;
+    sort_order: number;
+}
+
+interface TestimonialItem {
+    id: number;
+    name: string;
+    role: string | null;
+    content: string;
+    avatar_url: string | null;
+    rating: number;
+    is_active: boolean;
+    sort_order: number;
+}
+
 export default function HeroSettingsIndex({
     homeSettings,
     whyChooseUsItems,
+    faqItems,
+    testimonialItems,
     fleetSettings,
     reservationSettings,
     locationsPageSettings,
@@ -123,6 +146,8 @@ export default function HeroSettingsIndex({
 }: {
     homeSettings: HomeSettings;
     whyChooseUsItems?: WhyChooseUsItem[];
+    faqItems?: FaqItem[];
+    testimonialItems?: TestimonialItem[];
     fleetSettings: FleetSettings;
     reservationSettings: ReservationSettings;
     locationsPageSettings: LocationsPageSettings;
@@ -292,6 +317,8 @@ export default function HeroSettingsIndex({
                                     <HomePageTab
                                         settings={homeSettings}
                                         whyChooseUsItems={whyChooseUsItems || []}
+                                        faqItems={faqItems || []}
+                                        testimonialItems={testimonialItems || []}
                                         form={form}
                                         imageForm={imageForm}
                                         showImageForm={showImageForm}

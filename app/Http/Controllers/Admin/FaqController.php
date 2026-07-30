@@ -19,6 +19,11 @@ class FaqController extends Controller
         ]);
     }
 
+    protected function getRedirect(Request $request): string
+    {
+        return $request->input('_redirect', 'admin.faqs.index');
+    }
+
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -35,7 +40,7 @@ class FaqController extends Controller
         Cache::forget('shared.faqs');
         Cache::forget('chat.active_faqs');
 
-        return redirect()->route('admin.faqs.index')->with('success', 'FAQ created successfully.');
+        return redirect()->route($this->getRedirect($request))->with('success', 'FAQ created successfully.');
     }
 
     public function update(Request $request, Faq $faq)
@@ -54,7 +59,24 @@ class FaqController extends Controller
         Cache::forget('shared.faqs');
         Cache::forget('chat.active_faqs');
 
-        return redirect()->route('admin.faqs.index')->with('success', 'FAQ updated successfully.');
+        return redirect()->route($this->getRedirect($request))->with('success', 'FAQ updated successfully.');
+    }
+
+    public function reorder(Request $request)
+    {
+        $request->validate([
+            'ids' => 'required|array',
+            'ids.*' => 'integer|exists:faqs,id',
+        ]);
+
+        foreach ($request->ids as $index => $id) {
+            Faq::where('id', $id)->update(['sort_order' => $index]);
+        }
+
+        Cache::forget('shared.faqs');
+        Cache::forget('chat.active_faqs');
+
+        return redirect()->back();
     }
 
     public function destroy(Faq $faq)
@@ -64,6 +86,8 @@ class FaqController extends Controller
         Cache::forget('shared.faqs');
         Cache::forget('chat.active_faqs');
 
-        return redirect()->route('admin.faqs.index')->with('success', 'FAQ deleted successfully.');
+        $redirect = request()->input('_redirect', 'admin.faqs.index');
+
+        return redirect()->route($redirect)->with('success', 'FAQ deleted successfully.');
     }
 }

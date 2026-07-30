@@ -3,7 +3,9 @@ import GuestLayout from '@/Layouts/GuestLayout';
 import { Head, Link } from '@inertiajs/react';
 import { useRoute } from 'ziggy-js';
 import { countries as countriesList, type Country } from '@/data/countries';
+import Testimonials from '@/Components/Testimonials';
 import * as LucideIcons from 'lucide-react';
+import { useChat } from '@/Contexts/ChatContext';
 
 function WhyChooseUsIcon({ icon, className }: { icon: string; className?: string }) {
     if (/^M[\s\d]/.test(icon)) {
@@ -270,6 +272,16 @@ interface CarsIndexProps {
     whyChooseUsItems?: WhyChooseUsItem[];
     whyChooseUsHeading?: string;
     whyChooseUsSubheading?: string;
+    testimonialItems?: TestimonialData[];
+}
+
+interface TestimonialData {
+    id: number;
+    name: string;
+    role: string | null;
+    content: string;
+    avatar_url: string | null;
+    rating: number;
 }
 
 const carouselImages = [
@@ -343,8 +355,9 @@ const formatCurrency = (amount: number) => {
     return amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
-export default function CarsIndex({ canLogin, canRegister, cars, heroSettings, totalCars, locations, faqs: faqsFromProps = [], whyChooseUsItems, whyChooseUsHeading, whyChooseUsSubheading }: CarsIndexProps) {
+export default function CarsIndex({ canLogin, canRegister, cars, heroSettings, totalCars, locations, faqs: faqsFromProps = [], whyChooseUsItems, whyChooseUsHeading, whyChooseUsSubheading, testimonialItems }: CarsIndexProps) {
     const route = useRoute();
+    const { openChat } = useChat();
     const faqs = faqsFromProps.length > 0 ? faqsFromProps : [];
     const locationNames = useMemo(() => locations.map(l => l.location), [locations]);
 
@@ -1049,54 +1062,14 @@ export default function CarsIndex({ canLogin, canRegister, cars, heroSettings, t
                 </section>
 
                 {/* Testimonials - Asymmetric Layout */}
-                <section className="py-20 sm:py-28 bg-brand-900 relative overflow-hidden">
-                    <div className="absolute inset-0">
-                        <div className="absolute top-10 left-1/4 w-80 h-80 bg-accent-400/5 rounded-full blur-3xl" />
-                        <div className="absolute bottom-10 right-1/4 w-64 h-64 bg-brand-400/10 rounded-full blur-3xl" />
-                    </div>
-                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
-                        <div className="text-center mb-14" data-animate>
-                            <span className="inline-flex items-center gap-2 px-4 py-1.5 bg-accent-400/10 text-accent-400 text-sm font-semibold rounded-full border border-accent-400/20 mb-4">
-                                Testimonials
-                            </span>
-                            <h2 className="text-3xl sm:text-4xl font-bold text-white tracking-tight mb-3">What Our Customers Say</h2>
-                            <p className="text-surface-400 max-w-lg mx-auto">Trusted by thousands of happy drivers across the country</p>
-                        </div>
-
-                        <div className="grid md:grid-cols-3 gap-5">
-                            {testimonials.map((t, i) => (
-                                <div
-                                    key={i}
-                                    data-animate
-                                    className={`opacity-0 translate-y-8 transition-all duration-700 rounded-2xl p-6 sm:p-7 border border-white/10 group ${
-                                        i === 1
-                                            ? 'bg-white/10 md:-translate-y-3'
-                                            : 'bg-white/5 hover:bg-white/10 hover:border-white/20'
-                                    }`}
-                                    style={{ transitionDelay: `${i * 120}ms` }}
-                                >
-                                    <div className="flex gap-0.5 mb-4">
-                                        {[...Array(t.rating)].map((_, j) => (
-                                            <svg key={j} className="w-4 h-4 text-accent-400" fill="currentColor" viewBox="0 0 20 20">
-                                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                                            </svg>
-                                        ))}
-                                    </div>
-                                    <p className="text-surface-300 text-sm leading-relaxed mb-6">"{t.text}"</p>
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-accent-400 to-accent-500 flex items-center justify-center text-brand-900 font-bold text-xs">
-                                            {t.name.split(' ').map(n => n[0]).join('')}
-                                        </div>
-                                        <div>
-                                            <div className="text-sm font-semibold text-white">{t.name}</div>
-                                            <div className="text-xs text-surface-500">{t.role}</div>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </section>
+                <Testimonials items={testimonialItems && testimonialItems.length > 0 ? testimonialItems : testimonials.map((t, i) => ({
+                    id: i + 1,
+                    name: t.name,
+                    role: t.role,
+                    content: t.text,
+                    avatar_url: null,
+                    rating: t.rating,
+                }))} />
 
                 {/* Instant Pricing - Light */}
                 <section className="py-20 sm:py-28 bg-white relative overflow-hidden">
@@ -1470,15 +1443,16 @@ export default function CarsIndex({ canLogin, canRegister, cars, heroSettings, t
                                         </div>
                                         <h4 className="text-white font-bold mb-1 text-base">Still have questions?</h4>
                                         <p className="text-surface-300 text-xs mb-4 leading-relaxed">Our friendly support team is available around the clock to help you.</p>
-                                        <Link
-                                            href={route('fleet')}
-                                            className="inline-flex items-center gap-2 px-4 py-2 bg-accent-400 text-brand-900 text-xs font-bold rounded-lg hover:bg-accent-500 transition-colors group"
+                                        <button
+                                            type="button"
+                                            onClick={openChat}
+                                            className="inline-flex items-center gap-2 px-4 py-2 bg-accent-400 text-brand-900 text-xs font-bold rounded-lg hover:bg-accent-500 transition-colors group cursor-pointer"
                                         >
                                             Contact Support
                                             <svg className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17 8l4 4m0 0l-4 4m4-4H3" />
                                             </svg>
-                                        </Link>
+                                        </button>
                                     </div>
                                 </div>
                             </div>

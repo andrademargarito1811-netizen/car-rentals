@@ -4,11 +4,13 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\AboutUsSetting;
+use App\Models\Faq;
 use App\Models\FleetPageSetting;
 use App\Models\HeroImage;
 use App\Models\HeroSetting;
 use App\Models\LocationsPageSetting;
 use App\Models\ReservationSetting;
+use App\Models\Testimonial;
 use App\Models\WhyChooseUsItem;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -63,10 +65,14 @@ class HeroSettingController extends Controller
         }
 
         $whyChooseUsItems = WhyChooseUsItem::orderBy('sort_order')->get();
+        $faqItems = Faq::orderBy('sort_order')->get();
+        $testimonialItems = Testimonial::orderBy('sort_order')->get();
 
         return Inertia::render('Admin/HeroSettings/Index', [
             'homeSettings' => $settings,
             'whyChooseUsItems' => $whyChooseUsItems,
+            'faqItems' => $faqItems,
+            'testimonialItems' => $testimonialItems,
             'fleetSettings' => $fleetSettings,
             'reservationSettings' => $reservationSettings,
             'locationsPageSettings' => $locationsPageSettings,
