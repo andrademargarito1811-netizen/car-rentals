@@ -3,8 +3,13 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AboutUsSetting;
+use App\Models\FleetPageSetting;
 use App\Models\HeroImage;
 use App\Models\HeroSetting;
+use App\Models\LocationsPageSetting;
+use App\Models\ReservationSetting;
+use App\Models\WhyChooseUsItem;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
@@ -23,11 +28,49 @@ class HeroSettingController extends Controller
                 'headline_highlight' => 'Perfect Ride',
                 'tagline' => 'Drive Your Dreams, One Mile at a Time',
                 'description' => 'Browse our fleet of premium vehicles and hit the road with confidence',
+                'why_choose_us_heading' => 'Built for a Better Rental Experience',
+                'why_choose_us_subheading' => 'We go the extra mile to make every rental smooth, transparent, and enjoyable from start to finish.',
             ]);
         }
 
+        // Fleet page settings
+        $fleetSettings = FleetPageSetting::first();
+        if (!$fleetSettings) {
+            $fleetSettings = FleetPageSetting::create();
+        }
+
+        // Reservation settings
+        $reservationSettings = ReservationSetting::with('heroImages')->first();
+        if (!$reservationSettings) {
+            $reservationSettings = ReservationSetting::create([
+                'badge_text' => 'Palau Exclusive',
+                'headline' => 'Reserve Your',
+                'headline_highlight' => 'Ride',
+                'subtitle' => 'Complete the form below to secure your perfect vehicle. Palau-exclusive rentals for a truly unique experience.',
+            ]);
+        }
+
+        // Locations page settings
+        $locationsPageSettings = LocationsPageSetting::first();
+        if (!$locationsPageSettings) {
+            $locationsPageSettings = LocationsPageSetting::create();
+        }
+
+        // About Us settings
+        $aboutUsSettings = AboutUsSetting::first();
+        if (!$aboutUsSettings) {
+            $aboutUsSettings = AboutUsSetting::create();
+        }
+
+        $whyChooseUsItems = WhyChooseUsItem::orderBy('sort_order')->get();
+
         return Inertia::render('Admin/HeroSettings/Index', [
-            'settings' => $settings,
+            'homeSettings' => $settings,
+            'whyChooseUsItems' => $whyChooseUsItems,
+            'fleetSettings' => $fleetSettings,
+            'reservationSettings' => $reservationSettings,
+            'locationsPageSettings' => $locationsPageSettings,
+            'aboutUsSettings' => $aboutUsSettings,
         ]);
     }
 
@@ -47,6 +90,8 @@ class HeroSettingController extends Controller
             'image' => 'nullable|image|max:5120',
             'fleet_image' => 'nullable|image|max:5120',
             'is_active' => 'boolean',
+            'why_choose_us_heading' => 'required|string|max:255',
+            'why_choose_us_subheading' => 'required|string|max:500',
         ]);
 
         $settings = HeroSetting::first();
@@ -73,7 +118,7 @@ class HeroSettingController extends Controller
 
         Cache::forget('shared.heroSettings');
 
-        return redirect()->route('admin.hero-settings')->with('success', 'Hero settings updated successfully.');
+        return redirect()->route('admin.hero-settings')->with('success', 'Home page settings updated successfully.');
     }
 
     public function uploadImage(Request $request)
@@ -123,6 +168,23 @@ class HeroSettingController extends Controller
         Cache::forget('shared.heroSettings');
 
         return redirect()->route('admin.hero-settings')->with('success', 'Carousel image updated.');
+    }
+
+    public function reorderImages(Request $request)
+    {
+        $request->validate([
+            'images' => 'required|array',
+            'images.*.id' => 'required|exists:hero_images,id',
+            'images.*.sort_order' => 'required|integer|min:0',
+        ]);
+
+        foreach ($request->images as $item) {
+            HeroImage::where('id', $item['id'])->update(['sort_order' => $item['sort_order']]);
+        }
+
+        Cache::forget('shared.heroSettings');
+
+        return redirect()->route('admin.hero-settings')->with('success', 'Image order updated.');
     }
 
     public function deleteImage(HeroImage $heroImage)

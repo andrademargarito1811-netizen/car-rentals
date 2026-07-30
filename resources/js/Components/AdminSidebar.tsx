@@ -32,7 +32,7 @@ const navItems: NavItem[] = [
     { section: 'Management', label: 'Coupon Discount', href: 'admin.coupons.index', icon: 'Tag', admin: true, group: 'Commerce' },
     { section: 'Management', label: 'Tax & Surcharges', href: 'admin.tax.index', icon: 'Percent', admin: true, group: 'Commerce' },
     { section: 'Management', label: 'Vehicle Classes', href: 'admin.vehicle-classes.index', icon: 'Car', admin: true, group: 'Settings' },
-    { section: 'Management', label: 'Hero Settings', href: 'admin.hero-settings', icon: 'Image', admin: true, group: 'Settings' },
+    { section: 'Management', label: 'Page Customization', href: 'admin.hero-settings', icon: 'Image', admin: true, group: 'Settings' },
     { section: 'Management', label: 'Footer Settings', href: 'admin.footer-settings', icon: 'Layout', admin: true, group: 'Settings' },
     { section: 'Management', label: 'FAQ Management', href: 'admin.faqs.index', icon: 'CircleHelp', admin: true, group: 'Settings' },
     { section: 'Management', label: 'Reservation Settings', href: 'admin.reservation-settings', icon: 'CalendarRange', admin: true, group: 'Settings' },

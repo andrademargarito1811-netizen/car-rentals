@@ -42,6 +42,11 @@ class PageController extends Controller
         ]);
     }
 
+    public function about()
+    {
+        return Inertia::render('About');
+    }
+
     public function contact()
     {
         return Inertia::render('Contact');
@@ -83,6 +88,26 @@ class PageController extends Controller
         }
 
         return Inertia::render('BookNow', $data);
+    }
+
+    public function privacyPolicy()
+    {
+        return Inertia::render('Legal/PrivacyPolicy');
+    }
+
+    public function termsOfService()
+    {
+        return Inertia::render('Legal/TermsOfService');
+    }
+
+    public function cookiePolicy()
+    {
+        return Inertia::render('Legal/CookiePolicy');
+    }
+
+    public function termsAndConditions()
+    {
+        return Inertia::render('Legal/TermsAndConditions');
     }
 
     public function dashboard()

@@ -6,6 +6,7 @@ import ChatWidget from '@/Components/ChatWidget';
 import AdminSidebar from '@/Components/AdminSidebar';
 import CommandPalette from '@/Components/CommandPalette';
 import Breadcrumbs from '@/Components/Breadcrumbs';
+import CookieConsent from '@/Components/CookieConsent';
 import { useContactMessageBroadcast } from '@/Hooks/useContactMessageBroadcast';
 import { useChatUnreadBroadcast } from '@/Hooks/useChatUnreadBroadcast';
 
@@ -48,12 +49,12 @@ export default function AuthenticatedLayout({ header, children, breadcrumbs }: A
 
     return (
         <div className="min-h-screen bg-surface-50 dark:bg-brand-900 transition-colors duration-300">
-            <Toast />
-            <Toaster position="bottom-right" richColors closeButton />
-            <CommandPalette />
+                <Toast />
+                <Toaster position="bottom-right" richColors closeButton />
+                <CommandPalette />
 
-            {/* Mobile overlay */}
-            {sidebarOpen && (
+                {/* Mobile overlay */}
+                {sidebarOpen && (
                 <div
                     className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
                     onClick={() => setSidebarOpen(false)}
@@ -129,6 +130,7 @@ export default function AuthenticatedLayout({ header, children, breadcrumbs }: A
                 <main className="flex-1">{children}</main>
             </div>
             <ChatWidget />
+            <CookieConsent />
         </div>
     );
 }

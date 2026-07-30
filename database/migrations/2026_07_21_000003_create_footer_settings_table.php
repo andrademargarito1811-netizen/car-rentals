@@ -49,9 +49,10 @@ return new class extends Migration
                 ['label' => 'Contact', 'url' => '/contact'],
             ]),
             'legal_links' => json_encode([
-                ['label' => 'Privacy Policy', 'url' => '#'],
-                ['label' => 'Terms of Service', 'url' => '#'],
-                ['label' => 'Cookie Policy', 'url' => '#'],
+                ['label' => 'Privacy Policy', 'url' => '/privacy-policy'],
+                ['label' => 'Terms of Service', 'url' => '/terms-of-service'],
+                ['label' => 'Cookie Policy', 'url' => '/cookie-policy'],
+                ['label' => 'Terms and Conditions', 'url' => '/terms-and-conditions'],
             ]),
             'social_links' => json_encode([
                 ['platform' => 'facebook', 'label' => 'Facebook', 'url' => '#'],

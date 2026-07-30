@@ -3,6 +3,20 @@ import GuestLayout from '@/Layouts/GuestLayout';
 import { Head, Link } from '@inertiajs/react';
 import { useRoute } from 'ziggy-js';
 import { countries as countriesList, type Country } from '@/data/countries';
+import * as LucideIcons from 'lucide-react';
+
+function WhyChooseUsIcon({ icon, className }: { icon: string; className?: string }) {
+    if (/^M[\s\d]/.test(icon)) {
+        return (
+            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d={icon} />
+            </svg>
+        );
+    }
+    const IconComp = (LucideIcons as any)[icon];
+    if (IconComp) return <IconComp className={className} />;
+    return null;
+}
 
 function CountrySelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
     const [open, setOpen] = useState(false);
@@ -236,6 +250,15 @@ interface FaqData {
     popular: boolean;
 }
 
+interface WhyChooseUsItem {
+    id: number;
+    title: string;
+    description: string | null;
+    icon_svg: string | null;
+    sort_order: number;
+    is_active: boolean;
+}
+
 interface CarsIndexProps {
     canLogin: boolean;
     canRegister: boolean;
@@ -244,6 +267,9 @@ interface CarsIndexProps {
     totalCars: number;
     locations: LocationData[];
     faqs?: FaqData[];
+    whyChooseUsItems?: WhyChooseUsItem[];
+    whyChooseUsHeading?: string;
+    whyChooseUsSubheading?: string;
 }
 
 const carouselImages = [
@@ -317,7 +343,7 @@ const formatCurrency = (amount: number) => {
     return amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
-export default function CarsIndex({ canLogin, canRegister, cars, heroSettings, totalCars, locations, faqs: faqsFromProps = [] }: CarsIndexProps) {
+export default function CarsIndex({ canLogin, canRegister, cars, heroSettings, totalCars, locations, faqs: faqsFromProps = [], whyChooseUsItems, whyChooseUsHeading, whyChooseUsSubheading }: CarsIndexProps) {
     const route = useRoute();
     const faqs = faqsFromProps.length > 0 ? faqsFromProps : [];
     const locationNames = useMemo(() => locations.map(l => l.location), [locations]);
@@ -889,12 +915,19 @@ export default function CarsIndex({ canLogin, canRegister, cars, heroSettings, t
                             <span className="inline-flex items-center gap-2 px-4 py-1.5 bg-accent-400/10 text-accent-400 text-sm font-semibold rounded-full border border-accent-400/20 mb-4">
                                 Why Choose Us
                             </span>
-                            <h2 className="text-3xl sm:text-4xl font-bold text-white tracking-tight mb-3">Built for a Better Rental Experience</h2>
-                            <p className="text-surface-400 max-w-2xl mx-auto">We go the extra mile to make every rental smooth, transparent, and enjoyable from start to finish.</p>
+                            <h2 className="text-3xl sm:text-4xl font-bold text-white tracking-tight mb-3">{whyChooseUsHeading || 'Built for a Better Rental Experience'}</h2>
+                            <p className="text-surface-400 max-w-2xl mx-auto">{whyChooseUsSubheading || 'We go the extra mile to make every rental smooth, transparent, and enjoyable from start to finish.'}</p>
                         </div>
 
                         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 max-w-5xl mx-auto">
-                            {features.map((feature, i) => (
+                            {(whyChooseUsItems && whyChooseUsItems.length > 0
+                                ? whyChooseUsItems.map(item => ({
+                                    icon: item.icon_svg ?? '',
+                                    title: item.title,
+                                    description: item.description ?? '',
+                                  }))
+                                : features
+                            ).map((item, i) => (
                                 <div
                                     key={i}
                                     data-animate
@@ -902,12 +935,10 @@ export default function CarsIndex({ canLogin, canRegister, cars, heroSettings, t
                                     style={{ transitionDelay: `${i * 80}ms` }}
                                 >
                                     <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-accent-400 to-accent-500 flex items-center justify-center shadow-lg shadow-accent-400/20 mb-4 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300">
-                                        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
-                                            <path strokeLinecap="round" strokeLinejoin="round" d={feature.icon} />
-                                        </svg>
+                                        <WhyChooseUsIcon icon={item.icon} className="w-6 h-6 text-white" />
                                     </div>
-                                    <h3 className="text-base font-bold text-white mb-1.5">{feature.title}</h3>
-                                    <p className="text-sm text-surface-400 leading-relaxed">{feature.description}</p>
+                                    <h3 className="text-base font-bold text-white mb-1.5">{item.title}</h3>
+                                    <p className="text-sm text-surface-400 leading-relaxed">{item.description}</p>
                                 </div>
                             ))}
                         </div>

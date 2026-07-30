@@ -21,6 +21,8 @@ class HeroSetting extends Model
         'image_path',
         'fleet_image_path',
         'is_active',
+        'why_choose_us_heading',
+        'why_choose_us_subheading',
     ];
 
     protected function casts(): array

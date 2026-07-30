@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { usePage } from '@inertiajs/react';
 import { useChatBroadcast } from '@/Hooks/useChatBroadcast';
+import { useChat } from '@/Contexts/ChatContext';
 import { Bot, Sparkles } from 'lucide-react';
 
 interface FaqData {
@@ -50,7 +51,7 @@ export default function ChatWidget() {
     const user = auth?.user;
     const isAdmin = user?.role === 'admin';
 
-    const [open, setOpen] = useState(false);
+    const { open, openChat, closeChat } = useChat();
     const [messages, setMessages] = useState<MessageData[]>([]);
     const [conversationId, setConversationId] = useState<number | null>(null);
     const [body, setBody] = useState('');
@@ -457,7 +458,7 @@ export default function ChatWidget() {
         <>
             {!open && (
                 <button
-                    onClick={() => setOpen(true)}
+                    onClick={openChat}
                     className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-gradient-to-br from-brand-600 to-brand-700 text-white shadow-xl shadow-brand-500/30 hover:shadow-brand-500/50 hover:scale-105 active:scale-95 transition-all duration-200 flex items-center justify-center group"
                     title="Chat with us"
                 >
@@ -486,7 +487,7 @@ export default function ChatWidget() {
                                 <p className="text-[10px] text-white/70">We typically reply in minutes</p>
                             </div>
                         </div>
-                        <button onClick={() => setOpen(false)} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors">
+                        <button onClick={closeChat} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors">
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                             </svg>

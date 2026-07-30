@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Car;
+use App\Models\HeroSetting;
 use App\Models\VehicleLocation;
+use App\Models\WhyChooseUsItem;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -34,11 +36,16 @@ class CarController extends Controller
 
         $totalCars = Car::available()->count();
         $locations = VehicleLocation::active()->get(['location_id', 'location']);
+        $whyChooseUsItems = WhyChooseUsItem::active()->get();
+        $heroSettings = HeroSetting::first();
 
         return Inertia::render('Cars/Index', [
             'cars' => $cars,
             'totalCars' => $totalCars,
             'locations' => $locations,
+            'whyChooseUsItems' => $whyChooseUsItems,
+            'whyChooseUsHeading' => $heroSettings?->why_choose_us_heading ?? 'Built for a Better Rental Experience',
+            'whyChooseUsSubheading' => $heroSettings?->why_choose_us_subheading ?? 'We go the extra mile to make every rental smooth, transparent, and enjoyable from start to finish.',
         ]);
     }
 

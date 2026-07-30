@@ -21,7 +21,10 @@ use App\Http\Controllers\Admin\LocationController as AdminLocationController;
 use App\Http\Controllers\Admin\ReservationSettingController as AdminReservationSettingController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Admin\WhyBookController as AdminWhyBookController;
+use App\Http\Controllers\Admin\WhyChooseUsController as AdminWhyChooseUsController;
 use App\Http\Controllers\Admin\ContactMessageController as AdminContactMessageController;
+use App\Http\Controllers\Admin\FleetPageSettingController as AdminFleetPageSettingController;
+use App\Http\Controllers\Admin\AboutUsSettingController as AdminAboutUsSettingController;
 use App\Http\Controllers\Chat\ChatController;
 use Illuminate\Support\Facades\Route;
 
@@ -30,6 +33,7 @@ Route::get('/', [CarController::class, 'index'])->name('cars.index');
 Route::get('/cars/{car}', [CarController::class, 'show'])->name('cars.show');
 Route::get('/fleet', [PageController::class, 'fleet'])->name('fleet');
 Route::get('/locations', [PageController::class, 'locations'])->name('locations');
+Route::get('/about', [PageController::class, 'about'])->name('about');
 Route::get('/contact', [PageController::class, 'contact'])->name('contact');
 Route::post('/contact', [App\Http\Controllers\ContactController::class, 'store'])->name('contact.store')->middleware('throttle:5,1');
 Route::get('/reservations', [PageController::class, 'reservations'])->name('reservations');
@@ -52,6 +56,12 @@ Route::post('/cars/check-availability', [CarController::class, 'checkAvailabilit
 
 // Guest reservation submission (from BookNow.tsx / Reservation.tsx)
 Route::post('/reservations', [BookingController::class, 'storeGuest'])->name('reservations.store')->middleware('throttle:3,1');
+
+// Legal pages
+Route::get('/privacy-policy', [PageController::class, 'privacyPolicy'])->name('privacy-policy');
+Route::get('/terms-of-service', [PageController::class, 'termsOfService'])->name('terms-of-service');
+Route::get('/cookie-policy', [PageController::class, 'cookiePolicy'])->name('cookie-policy');
+Route::get('/terms-and-conditions', [PageController::class, 'termsAndConditions'])->name('terms-and-conditions');
 
 // Reviews
 Route::get('/reviews/{booking:reference_code}', [ReviewController::class, 'create'])->name('reviews.create');
@@ -146,12 +156,18 @@ Route::middleware(['auth', 'verified', 'role:admin', 'throttle:300,1'])->prefix(
     Route::put('/users/{user}', [AdminUserController::class, 'update'])->name('users.update');
     Route::delete('/users/{user}', [AdminUserController::class, 'destroy'])->name('users.destroy');
 
-    // Admin - Hero Settings
+    // Admin - Page Customization
     Route::get('/hero-settings', [AdminHeroSettingController::class, 'index'])->name('hero-settings');
     Route::post('/hero-settings', [AdminHeroSettingController::class, 'update'])->name('hero-settings.update');
     Route::post('/hero-settings/images', [AdminHeroSettingController::class, 'uploadImage'])->name('hero-settings.images.upload');
+    Route::post('/hero-settings/images/reorder', [AdminHeroSettingController::class, 'reorderImages'])->name('hero-settings.images.reorder');
     Route::post('/hero-settings/images/{heroImage}', [AdminHeroSettingController::class, 'updateImage'])->name('hero-settings.images.update');
     Route::delete('/hero-settings/images/{heroImage}', [AdminHeroSettingController::class, 'deleteImage'])->name('hero-settings.images.delete');
+
+    Route::post('/fleet-page-settings', [AdminFleetPageSettingController::class, 'update'])->name('fleet-page-settings.update');
+
+    // Admin - About Us Settings
+    Route::post('/about-us-settings', [AdminAboutUsSettingController::class, 'update'])->name('about-us-settings.update');
 
     // Admin - FAQ Management
     Route::get('/faqs', [AdminFaqController::class, 'index'])->name('faqs.index');
@@ -182,6 +198,12 @@ Route::middleware(['auth', 'verified', 'role:admin', 'throttle:300,1'])->prefix(
     Route::post('/why-book', [AdminWhyBookController::class, 'store'])->name('why-book.store');
     Route::put('/why-book/{whyBookItem}', [AdminWhyBookController::class, 'update'])->name('why-book.update');
     Route::delete('/why-book/{whyBookItem}', [AdminWhyBookController::class, 'destroy'])->name('why-book.destroy');
+
+    // Admin - Why Choose Us
+    Route::get('/why-choose-us', [AdminWhyChooseUsController::class, 'index'])->name('why-choose-us.index');
+    Route::post('/why-choose-us', [AdminWhyChooseUsController::class, 'store'])->name('why-choose-us.store');
+    Route::put('/why-choose-us/{whyChooseUsItem}', [AdminWhyChooseUsController::class, 'update'])->name('why-choose-us.update');
+    Route::delete('/why-choose-us/{whyChooseUsItem}', [AdminWhyChooseUsController::class, 'destroy'])->name('why-choose-us.destroy');
 
     // Admin - Contact Messages
     Route::get('/contact-messages', [AdminContactMessageController::class, 'index'])->name('contact-messages.index');

@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import GuestLayout from '@/Layouts/GuestLayout';
-import { Head, useForm, usePage } from '@inertiajs/react';
+import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import { Turnstile } from '@marsidev/react-turnstile';
 
 interface ContactSettings {
     contact_email: string;
     contact_phone: string;
+    contact_hours: string;
     contact_address: string;
 }
 
@@ -46,7 +47,7 @@ export default function Contact() {
             ),
             label: 'Call Us',
             value: settings.contact_phone || '+1 (800) 555-WEST',
-            description: 'Mon-Sat, 8AM - 8PM EST',
+            description: settings.contact_hours || 'Mon-Sat, 8AM - 8PM EST',
             href: `tel:${(settings.contact_phone || '+18005559378').replace(/[^+\d]/g, '')}`,
             color: 'bg-emerald-500/10 text-emerald-600 ring-emerald-500/20',
         },
@@ -382,15 +383,15 @@ const socialIcons: Record<string, string> = {
                                 <p className="text-brand-100 text-lg mb-8 max-w-xl mx-auto">
                                     Browse our fleet and find the perfect vehicle for your next adventure.
                                 </p>
-                                <a
-                                    href="/vehicles"
+                                <Link
+                                    href={route('fleet')}
                                     className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-white text-brand-700 font-semibold hover:bg-brand-50 transition-all duration-200 shadow-lg shadow-brand-800/20 hover:-translate-y-0.5"
                                 >
                                     Explore Our Fleet
                                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
                                     </svg>
-                                </a>
+                                </Link>
                             </div>
                         </div>
                     </div>

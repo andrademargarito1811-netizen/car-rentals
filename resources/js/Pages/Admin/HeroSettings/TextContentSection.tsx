@@ -18,7 +18,9 @@ interface TextContentSectionProps {
     data: TextContentData;
     onSetData: (key: string, value: string | boolean) => void;
     errors: Record<string, string>;
-    onToggleActive: () => void;
+    focusedField?: string | null;
+    onFieldFocus?: (field: string) => void;
+    onFieldBlur?: () => void;
 }
 
 const BADGE_ICONS = [
@@ -39,13 +41,17 @@ const BADGE_ICON_PATHS: Record<string, string> = {
     location: 'M15 10.5a3 3 0 11-6 0 3 3 0 016 0zM19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z',
 };
 
-function BadgeConfig({ prefix, label, data, onSetData, errors }: {
+function BadgeConfig({ prefix, label, data, onSetData, errors, showIcon, onFieldFocus, onFieldBlur }: {
     prefix: string;
     label: string;
     data: TextContentData;
     onSetData: (key: string, value: string | boolean) => void;
     errors: Record<string, string>;
+    showIcon?: boolean;
+    onFieldFocus?: (field: string) => void;
+    onFieldBlur?: () => void;
 }) {
+    showIcon = showIcon ?? true;
     const textKey = `${prefix}_text` as keyof TextContentData;
     const enabledKey = `${prefix}_enabled` as keyof TextContentData;
     const iconKey = `${prefix}_icon` as keyof TextContentData;
@@ -56,6 +62,7 @@ function BadgeConfig({ prefix, label, data, onSetData, errors }: {
             <div className="flex items-center justify-between gap-4">
                 <div className="flex-1">
                     <input type="text" value={data[textKey] as string} onChange={e => onSetData(textKey, e.target.value)}
+                        onFocus={() => onFieldFocus?.(textKey)} onBlur={onFieldBlur}
                         className="input-field" placeholder="Badge text..." />
                     {errors[textKey] && <p className="mt-1 text-xs text-red-500">{errors[textKey]}</p>}
                 </div>
@@ -74,34 +81,36 @@ function BadgeConfig({ prefix, label, data, onSetData, errors }: {
                     <span className="text-[10px] font-medium text-surface-500 dark:text-surface-400">{(data[enabledKey] as boolean) ? 'On' : 'Off'}</span>
                 </div>
             </div>
-            <div>
-                <label className="block text-[10px] font-semibold text-surface-500 dark:text-surface-400 mb-1 uppercase tracking-wider">Icon</label>
-                <div className="relative">
-                    <select value={data[iconKey] as string} onChange={e => onSetData(iconKey, e.target.value)}
-                        className="input-field appearance-none cursor-pointer pr-10">
-                        {BADGE_ICONS.map(ico => (
-                            <option key={ico.value} value={ico.value}>{ico.label}</option>
-                        ))}
-                    </select>
-                    <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                        </svg>
+            {showIcon && (
+                <div>
+                    <label className="block text-[10px] font-semibold text-surface-500 dark:text-surface-400 mb-1 uppercase tracking-wider">Icon</label>
+                    <div className="relative">
+                        <select value={data[iconKey] as string} onChange={e => onSetData(iconKey, e.target.value)}
+                            className="input-field appearance-none cursor-pointer pr-10">
+                            {BADGE_ICONS.map(ico => (
+                                <option key={ico.value} value={ico.value}>{ico.label}</option>
+                            ))}
+                        </select>
+                        <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </div>
                     </div>
+                    <div className="flex items-center gap-1.5 mt-1.5">
+                        <svg className="w-3.5 h-3.5 text-accent-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d={BADGE_ICON_PATHS[data[iconKey] as string]} />
+                        </svg>
+                        <span className="text-[10px] text-surface-400">{BADGE_ICONS.find(i => i.value === data[iconKey])?.label}</span>
+                    </div>
+                    {errors[iconKey] && <p className="mt-1 text-xs text-red-500">{errors[iconKey]}</p>}
                 </div>
-                <div className="flex items-center gap-1.5 mt-1.5">
-                    <svg className="w-3.5 h-3.5 text-accent-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
-                        <path strokeLinecap="round" strokeLinejoin="round" d={BADGE_ICON_PATHS[data[iconKey] as string]} />
-                    </svg>
-                    <span className="text-[10px] text-surface-400">{BADGE_ICONS.find(i => i.value === data[iconKey])?.label}</span>
-                </div>
-                {errors[iconKey] && <p className="mt-1 text-xs text-red-500">{errors[iconKey]}</p>}
-            </div>
+            )}
         </div>
     );
 }
 
-export default function TextContentSection({ data, onSetData, errors, onToggleActive }: TextContentSectionProps) {
+export default function TextContentSection({ data, onSetData, errors, focusedField, onFieldFocus, onFieldBlur }: TextContentSectionProps) {
     return (
         <div className="group/card relative overflow-hidden bg-white dark:bg-brand-800/80 rounded-2xl border border-surface-200 dark:border-surface-700/60 transition-all duration-300 hover:-translate-y-1 hover:shadow-elevated">
             <div className="absolute -top-20 -right-20 w-40 h-40 bg-brand-400/5 rounded-full blur-3xl group-hover/card:bg-accent-400/5 transition-colors duration-700" />
@@ -120,52 +129,48 @@ export default function TextContentSection({ data, onSetData, errors, onToggleAc
             </div>
             <div className="relative p-6 sm:p-8">
                 <div className="space-y-5 max-w-2xl">
-                    <BadgeConfig prefix="badge" label="Hero Badge (above Find Your)" data={data} onSetData={onSetData} errors={errors} />
-                    <BadgeConfig prefix="booking_badge" label="Booking Badge (next to Book Your Ride)" data={data} onSetData={onSetData} errors={errors} />
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm font-semibold text-surface-700 dark:text-surface-300 mb-1.5">Headline</label>
-                            <input type="text" value={data.headline} onChange={e => onSetData('headline', e.target.value)}
-                                className="input-field" placeholder="Find Your" />
-                            {errors.headline && <p className="mt-1 text-xs text-red-500">{errors.headline}</p>}
-                        </div>
-                        <div>
-                            <label className="block text-sm font-semibold text-surface-700 dark:text-surface-300 mb-1.5">Headline Highlight</label>
-                            <input type="text" value={data.headline_highlight} onChange={e => onSetData('headline_highlight', e.target.value)}
-                                className="input-field" placeholder="Perfect Ride" />
-                            {errors.headline_highlight && <p className="mt-1 text-xs text-red-500">{errors.headline_highlight}</p>}
+                    <div className="bg-surface-50/70 dark:bg-brand-900/30 rounded-xl border border-surface-100 dark:border-surface-700/50 p-5 space-y-4">
+                        <span className="text-xs font-semibold text-surface-700 dark:text-surface-300">Headline</span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <input type="text" value={data.headline} onChange={e => onSetData('headline', e.target.value)}
+                                    onFocus={() => onFieldFocus?.('headline')} onBlur={onFieldBlur}
+                                    className="input-field" placeholder="Find Your" />
+                                {errors.headline && <p className="mt-1 text-xs text-red-500">{errors.headline}</p>}
+                            </div>
+                            <div>
+                                <input type="text" value={data.headline_highlight} onChange={e => onSetData('headline_highlight', e.target.value)}
+                                    onFocus={() => onFieldFocus?.('headline')} onBlur={onFieldBlur}
+                                    className="input-field" placeholder="Perfect Ride" />
+                                {errors.headline_highlight && <p className="mt-1 text-xs text-red-500">{errors.headline_highlight}</p>}
+                            </div>
                         </div>
                     </div>
 
                     <div>
                         <label className="block text-sm font-semibold text-surface-700 dark:text-surface-300 mb-1.5">Tagline</label>
-                        <input type="text" value={data.tagline} onChange={e => onSetData('tagline', e.target.value)}
-                            className="input-field" placeholder="Drive Your Dreams, One Mile at a Time" />
+                        <div className="relative">
+                            <input type="text" value={data.tagline} maxLength={120} onChange={e => onSetData('tagline', e.target.value)}
+                                onFocus={() => onFieldFocus?.('tagline')} onBlur={onFieldBlur}
+                                className="input-field pr-14" placeholder="Drive Your Dreams, One Mile at a Time" />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-medium text-surface-400">{data.tagline.length}/120</span>
+                        </div>
                         {errors.tagline && <p className="mt-1 text-xs text-red-500">{errors.tagline}</p>}
                     </div>
 
                     <div>
                         <label className="block text-sm font-semibold text-surface-700 dark:text-surface-300 mb-1.5">Description</label>
-                        <textarea value={data.description} onChange={e => onSetData('description', e.target.value)}
-                            className="input-field resize-none" rows={3} placeholder="Browse our fleet of premium vehicles..." />
+                        <div className="relative">
+                            <textarea value={data.description} maxLength={300} onChange={e => onSetData('description', e.target.value)}
+                                onFocus={() => onFieldFocus?.('description')} onBlur={onFieldBlur}
+                                className="input-field resize-none pr-14" rows={3} placeholder="Browse our fleet of premium vehicles..." />
+                            <span className="absolute right-3 bottom-3 text-[10px] font-medium text-surface-400">{data.description.length}/300</span>
+                        </div>
                         {errors.description && <p className="mt-1 text-xs text-red-500">{errors.description}</p>}
                     </div>
 
-                    <div className="flex items-center gap-3 pt-3 border-t border-surface-100 dark:border-surface-700/60">
-                        <button type="button"
-                            onClick={onToggleActive}
-                            className={cn(
-                                'relative inline-flex h-7 w-12 shrink-0 rounded-full border-2 border-transparent transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-brand-500/30',
-                                data.is_active ? 'bg-brand-600' : 'bg-surface-300 dark:bg-surface-600'
-                            )}>
-                            <span className={cn(
-                                'inline-block h-6 w-6 transform rounded-full bg-white shadow-md transition-transform duration-300',
-                                data.is_active ? 'translate-x-5' : 'translate-x-0'
-                            )} />
-                        </button>
-                        <span className="text-sm font-medium text-surface-700 dark:text-surface-300">Hero banner active</span>
-                    </div>
+                    <BadgeConfig prefix="badge" label="Hero Badge" data={data} onSetData={onSetData} errors={errors} showIcon={false} onFieldFocus={onFieldFocus} onFieldBlur={onFieldBlur} />
+                    <BadgeConfig prefix="booking_badge" label="Booking Badge" data={data} onSetData={onSetData} errors={errors} />
                 </div>
             </div>
         </div>

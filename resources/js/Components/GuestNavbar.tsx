@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 
 interface GuestNavbarProps {
     canLogin?: boolean;
@@ -9,6 +9,11 @@ interface GuestNavbarProps {
 export default function GuestNavbar({ canLogin = false, canRegister = true }: GuestNavbarProps) {
     const [mobileOpen, setMobileOpen] = useState(false);
     const [scrolled, setScrolled] = useState(false);
+    const { footerSettings } = usePage().props as { footerSettings: { contact_phone: string; contact_email: string } | null };
+    const phone = footerSettings?.contact_phone || '+1 (800) 555-WEST';
+    const email = footerSettings?.contact_email || 'info@westcarsales.com';
+    const phoneDigits = phone.replace(/[^\d+]/g, '');
+
     useEffect(() => {
         const handleScroll = () => setScrolled(window.scrollY > 20);
         window.addEventListener('scroll', handleScroll);
@@ -30,6 +35,7 @@ export default function GuestNavbar({ canLogin = false, canRegister = true }: Gu
         { href: route('reservations'), label: 'Reservation', routeName: 'reservations', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
         { href: route('bookings.lookup'), label: 'Track Reservation', routeName: 'bookings.lookup', icon: 'M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z' },
         { href: route('locations'), label: 'Locations', routeName: 'locations', icon: 'M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0zM15 11a3 3 0 11-6 0 3 3 0 016 0z' },
+        { href: route('about'), label: 'About Us', routeName: 'about', icon: 'M13 16h-1v-4h-1m1-4h.01M12 2a10 10 0 100 20 10 10 0 000-20z' },
         { href: route('contact'), label: 'Contact', routeName: 'contact', icon: 'M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z' },
     ];
 
@@ -52,10 +58,10 @@ export default function GuestNavbar({ canLogin = false, canRegister = true }: Gu
                 <div className={`h-[3px] bg-gradient-to-r from-accent-500 via-accent-400 to-accent-500 transition-opacity duration-500 ${scrolled ? 'opacity-100' : 'opacity-60'}`} />
 
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex items-center justify-between h-[72px] lg:h-[80px]">
+                    <div className="flex items-center justify-between h-[72px] lg:h-[80px] gap-4 lg:gap-8">
 
                         {/* Logo */}
-                        <Link href={route('cars.index')} className="flex items-center gap-3 group">
+                        <Link href={route('cars.index')} className="flex items-center gap-3 group shrink-0">
                             <img
                                 src="/img/company_logo/company-logos-01.png"
                                 alt="West Car Rental"
@@ -238,6 +244,30 @@ export default function GuestNavbar({ canLogin = false, canRegister = true }: Gu
                                     </Link>
                                 );
                             })}
+                        </div>
+                    </div>
+
+                    {/* Mobile Contact */}
+                    <div className="px-4 py-3 border-t border-surface-100">
+                        <div className="flex flex-col gap-2">
+                            <a
+                                href={`tel:${phoneDigits}`}
+                                className="flex items-center gap-2 text-sm font-semibold text-surface-600 hover:text-brand-900 transition-colors"
+                            >
+                                <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                                </svg>
+                                {phone}
+                            </a>
+                            <a
+                                href={`mailto:${email}`}
+                                className="flex items-center gap-2 text-sm font-semibold text-surface-600 hover:text-brand-900 transition-colors"
+                            >
+                                <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                </svg>
+                                {email}
+                            </a>
                         </div>
                     </div>
 
