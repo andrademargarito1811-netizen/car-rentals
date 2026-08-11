@@ -9,6 +9,7 @@ import Breadcrumbs from '@/Components/Breadcrumbs';
 import CookieConsent from '@/Components/CookieConsent';
 import { useContactMessageBroadcast } from '@/Hooks/useContactMessageBroadcast';
 import { useChatUnreadBroadcast } from '@/Hooks/useChatUnreadBroadcast';
+import { footerLogoUrl } from '@/lib/utils';
 
 interface BreadcrumbItem {
     label: string;
@@ -23,6 +24,9 @@ interface AuthenticatedLayoutProps {
 
 export default function AuthenticatedLayout({ header, children, breadcrumbs }: AuthenticatedLayoutProps) {
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const { footerSettings } = usePage().props as { footerSettings?: { brand_name?: string; logo_path?: string | null } | null };
+    const brandName = footerSettings?.brand_name || 'West Car Rental';
+    const logoUrl = footerLogoUrl(footerSettings?.logo_path);
 
     useContactMessageBroadcast();
     useChatUnreadBroadcast();
@@ -84,11 +88,11 @@ export default function AuthenticatedLayout({ header, children, breadcrumbs }: A
                             </svg>
                         </button>
 
-                        <Link href={route('cars.index')} className="flex items-center gap-2">
+                        <Link href={route('admin.dashboard')} className="flex items-center gap-2">
                             <div className="w-8 h-8 rounded-lg bg-white dark:bg-brand-800 border border-surface-100 dark:border-surface-600 flex items-center justify-center overflow-hidden">
-                                <img src="/img/company_logo/company-logos-01.png" alt="West Car Rental" className="h-6 w-auto object-contain" />
+                                <img src={logoUrl} alt={brandName} className="h-6 w-auto object-contain" />
                             </div>
-                            <span className="text-sm font-bold text-surface-900 dark:text-white">West Car Rental</span>
+                            <span className="text-sm font-bold text-surface-900 dark:text-white">{brandName}</span>
                         </Link>
 
                         <div className="flex items-center gap-2">

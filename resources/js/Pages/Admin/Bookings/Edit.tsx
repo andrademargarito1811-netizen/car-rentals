@@ -102,8 +102,9 @@ function formatPrice(value: number) {
 
 function calcRentalDays(pickupDate: string, pickupTime: string | undefined, returnDate: string, returnTime: string | undefined): number {
   if (!pickupDate || !returnDate) return 0;
-  const start = new Date(`${pickupDate}T${pickupTime || '10:00'}:00`);
-  const end = new Date(`${returnDate}T${returnTime || '10:00'}:00`);
+  const toHHMM = (t?: string) => (t && t.length >= 5 ? t.substring(0, 5) : t || '');
+  const start = new Date(`${pickupDate}T${toHHMM(pickupTime) || '00:00'}:00`);
+  const end = new Date(`${returnDate}T${toHHMM(returnTime) || '23:59'}:00`);
   return Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
 }
 
@@ -320,8 +321,8 @@ export default function AdminBookingEdit({ booking, cars, locations }: AdminBook
           <div className="border-b border-border bg-gradient-to-b from-muted/30 to-background">
             <div className="relative max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
               <nav className="flex items-center gap-2 text-sm text-muted-foreground mb-3">
-                <Link href={route('admin.bookings.index')} className="hover:text-foreground transition-colors">
-                  Bookings
+                <Link href={route('admin.reservations.index')} className="hover:text-foreground transition-colors">
+                  Reservations
                 </Link>
                 <ChevronRight className="w-3.5 h-3.5" />
                 <Link href={route('admin.bookings.show', booking.id)} className="hover:text-foreground transition-colors">

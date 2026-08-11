@@ -4,9 +4,10 @@ import Dropdown from '@/Components/Dropdown';
 import DropdownLink from '@/Components/DropdownLink';
 import {
     LayoutDashboard, Truck, Calendar, FileText, Tag, Percent, Image,
-    Layout, CalendarRange, MapPin, Mail,     MessageCircle, Users, Car,
-    ChevronDown,
+    Layout, MapPin, Mail,     MessageCircle, Users, Car,
+    ScrollText, Receipt, ChevronDown, Star, FileClock, UserCheck,
 } from 'lucide-react';
+import { footerLogoUrl } from '@/lib/utils';
 
 interface NavItem {
     label: string;
@@ -19,24 +20,29 @@ interface NavItem {
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
     LayoutDashboard, Truck, Calendar, FileText, Tag, Percent, Image,
-    Layout, CalendarRange, MapPin, Mail, MessageCircle, Users, Car,
+    Layout, MapPin, Mail, MessageCircle, Users, Car, ScrollText, Receipt,
+    Star, FileClock, UserCheck,
 };
 
 const navItems: NavItem[] = [
     { section: 'Main', label: 'Dashboard', href: 'dashboard', icon: 'LayoutDashboard' },
-    { section: 'Main', label: 'Vehicle', href: 'admin.cars.index', icon: 'Truck', admin: true },
-    { section: 'Main', label: 'Booking Schedule', href: 'admin.cars.schedule', icon: 'Calendar', admin: true },
     { section: 'Main', label: 'Reservation', href: 'admin.reservations.index', icon: 'FileText', admin: true },
+    { section: 'Main', label: 'Booking Schedule', href: 'admin.cars.schedule', icon: 'Calendar', admin: true },
     { section: 'Main', label: 'Live Chat', href: 'admin.chats.index', icon: 'MessageCircle', admin: true },
+    { section: 'Management', label: 'Vehicle', href: 'admin.cars.index', icon: 'Truck', admin: true, group: 'Catalog' },
+    { section: 'Management', label: 'Vehicle Classes', href: 'admin.vehicle-classes.index', icon: 'Car', admin: true, group: 'Catalog' },
     { section: 'Management', label: 'Account Management', href: 'admin.users.index', icon: 'Users', admin: true, group: 'Commerce' },
+    { section: 'Management', label: 'Guests', href: 'admin.guests.index', icon: 'UserCheck', admin: true, group: 'Commerce' },
     { section: 'Management', label: 'Coupon Discount', href: 'admin.coupons.index', icon: 'Tag', admin: true, group: 'Commerce' },
     { section: 'Management', label: 'Tax & Surcharges', href: 'admin.tax.index', icon: 'Percent', admin: true, group: 'Commerce' },
-    { section: 'Management', label: 'Vehicle Classes', href: 'admin.vehicle-classes.index', icon: 'Car', admin: true, group: 'Settings' },
-    { section: 'Management', label: 'Page Customization', href: 'admin.hero-settings', icon: 'Image', admin: true, group: 'Settings' },
-    { section: 'Management', label: 'Footer Settings', href: 'admin.footer-settings', icon: 'Layout', admin: true, group: 'Settings' },
-    { section: 'Management', label: 'Reservation Settings', href: 'admin.reservation-settings', icon: 'CalendarRange', admin: true, group: 'Settings' },
-    { section: 'Management', label: 'Locations Settings', href: 'admin.locations.index', icon: 'MapPin', admin: true, group: 'Settings' },
+    { section: 'Management', label: 'Extra Charges', href: 'admin.extra-charges.index', icon: 'Receipt', admin: true, group: 'Commerce' },
+    { section: 'Management', label: 'Invoice Settings', href: 'admin.invoice-settings.index', icon: 'Receipt', group: 'Commerce' },
+    { section: 'Management', label: 'Locations Settings', href: 'admin.locations.index', icon: 'MapPin', admin: true, group: 'Site Settings' },
+    { section: 'Management', label: 'Page Customization', href: 'admin.hero-settings', icon: 'Image', admin: true, group: 'Site Settings' },
+    { section: 'Management', label: 'Reviews', href: 'admin.reviews.index', icon: 'Star', admin: true, group: 'Support' },
     { section: 'Management', label: 'Contact Messages', href: 'admin.contact-messages.index', icon: 'Mail', group: 'Support' },
+    { section: 'Management', label: 'Agreements', href: 'admin.agreements.index', icon: 'ScrollText', group: 'Support' },
+    { section: 'Management', label: 'Audit Logs', href: 'admin.audit-logs.index', icon: 'FileClock', admin: true, group: 'Support' },
 ];
 
 interface AdminSidebarProps {
@@ -49,7 +55,10 @@ interface AdminSidebarProps {
 }
 
 export default function AdminSidebar({ collapsed, onToggleCollapse, sidebarOpen, onCloseSidebar, dark, onToggleDark }: AdminSidebarProps) {
-    const { auth, unreadMessageCount, chatUnreadCount } = usePage().props as any;
+    const { auth, unreadMessageCount, chatUnreadCount, footerSettings } = usePage().props as any;
+    const brandName = footerSettings?.brand_name || 'West Car Rental';
+    const brandTagline = footerSettings?.brand_tagline || 'Crafted for the Open Road';
+    const logoUrl = footerLogoUrl(footerSettings?.logo_path);
     const isAdmin = auth?.user?.role === 'admin';
     const unreadCount = (unreadMessageCount as number) || 0;
     const chatUnread = (chatUnreadCount as number) || 0;
@@ -66,9 +75,9 @@ export default function AdminSidebar({ collapsed, onToggleCollapse, sidebarOpen,
 
     const isGroupExpanded = (group: string) => expandedGroups[group] !== false;
 
-    const isActive = (target: string) => {
+    const isActive = (item: NavItem) => {
         try {
-            return route().current(target);
+            return route().current(getItemRoute(item));
         } catch {
             return false;
         }
@@ -93,7 +102,7 @@ export default function AdminSidebar({ collapsed, onToggleCollapse, sidebarOpen,
     }, [managementItems]);
 
     const renderNavItem = (item: NavItem) => {
-        const active = isActive(getItemRoute(item));
+        const active = isActive(item);
         const Icon = iconMap[item.icon];
         return (
             <Link
@@ -166,20 +175,20 @@ export default function AdminSidebar({ collapsed, onToggleCollapse, sidebarOpen,
             {/* Logo area */}
             <div className="relative flex items-center h-24 lg:h-28 px-5 shrink-0 group">
                 <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-accent-400/40 to-transparent" />
-                <Link href={route('cars.index')} className={`flex items-center gap-3 group min-w-0 ${collapsed ? 'justify-center flex-1' : 'flex-1'}`} title={collapsed ? 'West Car Rental' : undefined}>
+                <Link href={route('admin.dashboard')} className={`flex items-center gap-3 group min-w-0 ${collapsed ? 'justify-center flex-1' : 'flex-1'}`} title={collapsed ? brandName : undefined}>
                     <div className="relative">
                         <div className="w-12 h-12 lg:w-14 lg:h-14 rounded-xl bg-white dark:bg-brand-800 border-2 border-surface-100 dark:border-surface-600 group-hover:border-accent-400 flex items-center justify-center shadow-sm transition-all duration-300 overflow-hidden shrink-0">
                             <img
-                                src="/img/company_logo/company-logos-01.png"
-                                alt="West Car Rental"
+                                src={logoUrl}
+                                alt={brandName}
                                 className="h-9 lg:h-11 w-auto object-contain"
                             />
                         </div>
                         <div className="absolute -inset-1.5 rounded-xl bg-gradient-to-br from-brand-500/20 to-accent-400/20 blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                     </div>
                     <div className={`min-w-0 ${collapsed ? 'hidden' : ''}`}>
-                        <span className="text-base lg:text-lg font-bold text-surface-900 dark:text-white tracking-tight leading-tight block truncate">West Car Rental</span>
-                        <span className="text-[10px] lg:text-xs font-medium text-accent-600 tracking-[0.15em] uppercase leading-tight block">Crafted for the Open Road</span>
+                        <span className="text-base lg:text-lg font-bold text-surface-900 dark:text-white tracking-tight leading-tight block truncate">{brandName}</span>
+                        <span className="text-[10px] lg:text-xs font-medium text-accent-600 tracking-[0.15em] uppercase leading-tight block">{brandTagline}</span>
                     </div>
                 </Link>
                 <button onClick={onCloseSidebar} className="lg:hidden p-1.5 text-surface-400 hover:text-surface-900 dark:hover:text-white rounded-lg hover:bg-surface-100 dark:hover:bg-surface-700 transition-colors shrink-0">

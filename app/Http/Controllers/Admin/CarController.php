@@ -3,12 +3,12 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\Car;
-use App\Models\Booking;
 use App\Models\AuditLog;
-use App\Models\VehicleLocation;
-use App\Models\VehicleClass;
+use App\Models\Car;
+use App\Models\LegalDocument;
 use App\Models\VehicleAvailability;
+use App\Models\VehicleClass;
+use App\Models\VehicleLocation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
@@ -22,7 +22,7 @@ class CarController extends Controller
         $sortDirection = $request->input('sort_direction', 'asc');
 
         $allowedSorts = ['brand', 'daily_rate', 'year'];
-        if (!in_array($sortField, $allowedSorts)) {
+        if (! in_array($sortField, $allowedSorts)) {
             $sortField = 'brand';
         }
         $sortDirection = $sortDirection === 'desc' ? 'desc' : 'asc';
@@ -40,9 +40,9 @@ class CarController extends Controller
         if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('brand', 'like', "%{$search}%")
-                  ->orWhere('model', 'like', "%{$search}%")
-                  ->orWhere('license_plate', 'like', "%{$search}%")
-                  ->orWhere('stock_number', 'like', "%{$search}%");
+                    ->orWhere('model', 'like', "%{$search}%")
+                    ->orWhere('license_plate', 'like', "%{$search}%")
+                    ->orWhere('stock_number', 'like', "%{$search}%");
             });
         }
 
@@ -100,11 +100,12 @@ class CarController extends Controller
             'air_conditioned' => 'nullable|boolean',
             'maximum_weight' => 'nullable|numeric|min:0',
             'engine' => 'nullable|string|max:255',
-            'power_type' => 'nullable|string|max:255',
             'fuel_charges' => 'nullable|numeric|min:0',
             'fuel_consumption' => 'nullable|numeric|min:0',
             'co2_emission' => 'nullable|integer|min:0',
-            'vehicle_rate_type' => 'nullable|string|max:255',
+            'free_km_per_day' => 'nullable|integer|min:0',
+            'additional_km_rate' => 'nullable|numeric|min:0',
+            'fuel_tank_capacity' => 'nullable|numeric|min:0',
         ]);
 
         if ($request->hasFile('image')) {
@@ -146,7 +147,7 @@ class CarController extends Controller
             'brand' => 'required|string|max:255',
             'model' => 'required|string|max:255',
             'year' => 'required|integer|min:2000|max:2030',
-            'license_plate' => 'required|string|unique:tblcars,license_plate,' . $car->id,
+            'license_plate' => 'required|string|unique:tblcars,license_plate,'.$car->id,
             'daily_rate' => 'required|numeric|min:0',
             'fuel_type' => 'required|in:gasoline,diesel,electric,hybrid',
             'seats' => 'required|integer|min:1|max:15',
@@ -156,8 +157,8 @@ class CarController extends Controller
             'location_id' => 'nullable|integer|exists:tblvehicle_location,location_id',
             'class_id' => 'nullable|string|max:50|exists:tblvehicle_classes,class_no',
             'availability_id' => 'nullable|integer|exists:tblvehicle_availability,available_id',
-            'stock_number' => 'nullable|string|max:255|unique:tblcars,stock_number,' . $car->id,
-            'vin' => 'nullable|string|max:255|unique:tblcars,vin,' . $car->id,
+            'stock_number' => 'nullable|string|max:255|unique:tblcars,stock_number,'.$car->id,
+            'vin' => 'nullable|string|max:255|unique:tblcars,vin,'.$car->id,
             'color' => 'nullable|string|max:255',
             'baggage_capacity' => 'nullable|integer|min:0',
             'vehicle_doors' => 'nullable|integer|min:1|max:9',
@@ -167,11 +168,12 @@ class CarController extends Controller
             'air_conditioned' => 'nullable|boolean',
             'maximum_weight' => 'nullable|numeric|min:0',
             'engine' => 'nullable|string|max:255',
-            'power_type' => 'nullable|string|max:255',
             'fuel_charges' => 'nullable|numeric|min:0',
             'fuel_consumption' => 'nullable|numeric|min:0',
             'co2_emission' => 'nullable|integer|min:0',
-            'vehicle_rate_type' => 'nullable|string|max:255',
+            'free_km_per_day' => 'nullable|integer|min:0',
+            'additional_km_rate' => 'nullable|numeric|min:0',
+            'fuel_tank_capacity' => 'nullable|numeric|min:0',
         ]);
 
         if ($request->hasFile('image')) {
@@ -221,8 +223,8 @@ class CarController extends Controller
     {
         $cars = Car::with(['bookings' => function ($q) {
             $q->whereIn('status', ['pending', 'confirmed', 'active'])
-              ->where('end_date', '>=', now()->startOfMonth()->subMonth())
-              ->orderBy('start_date');
+                ->where('end_date', '>=', now()->startOfMonth()->subMonth())
+                ->orderBy('start_date');
         }, 'bookings.user', 'bookings.guest', 'location', 'availability', 'vehicleClass'])
             ->select(['id', 'brand', 'model', 'year', 'license_plate', 'color', 'location_id', 'availability_id', 'daily_rate', 'image_path', 'class_id'])
             ->orderBy('brand')
@@ -231,12 +233,14 @@ class CarController extends Controller
 
         $locations = VehicleLocation::active()->select(['location_id', 'location', 'address'])->get();
 
-        $reservationSettings = \App\Models\ReservationSetting::first();
+        $bookingTerms = LegalDocument::where('slug', 'terms-and-conditions')
+            ->where('is_active', true)
+            ->first()?->content;
 
         return Inertia::render('Admin/Cars/Schedule', [
             'cars' => $cars,
             'locations' => $locations,
-            'bookingTerms' => $reservationSettings?->booking_terms,
+            'bookingTerms' => $bookingTerms,
         ]);
     }
 }

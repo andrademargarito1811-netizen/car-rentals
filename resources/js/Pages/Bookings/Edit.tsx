@@ -111,8 +111,9 @@ const toLocalDateString = (date: Date): string => {
 
 function calcRentalDays(pickupDate: string, pickupTime: string | undefined, returnDate: string, returnTime: string | undefined): number {
     if (!pickupDate || !returnDate) return 0;
-    const start = new Date(`${pickupDate}T${pickupTime || '10:00'}:00`);
-    const end = new Date(`${returnDate}T${returnTime || '10:00'}:00`);
+    const toHHMM = (t?: string) => (t && t.length >= 5 ? t.substring(0, 5) : t || '');
+    const start = new Date(`${pickupDate}T${toHHMM(pickupTime) || '00:00'}:00`);
+    const end = new Date(`${returnDate}T${toHHMM(returnTime) || '23:59'}:00`);
     return Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
 }
 

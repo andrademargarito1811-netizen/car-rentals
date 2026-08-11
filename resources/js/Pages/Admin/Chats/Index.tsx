@@ -900,8 +900,8 @@ export default function ChatsIndex({ conversations }: ChatsIndexProps) {
                                                             )}
                                                         </div>
                                                         <div className="shrink-0 flex flex-col items-center gap-1 pt-0.5">
-                                                            {conv.notes_count > 0 && (
-                                                                <span className="inline-flex items-center justify-center w-[18px] h-[18px] rounded-full bg-amber-400 dark:bg-amber-500 text-white text-[9px] font-bold leading-none shadow-sm" title={`${conv.notes_count} note${conv.notes_count !== 1 ? 's' : ''}`}>
+                                                            {(conv.notes_count ?? 0) > 0 && (
+                                                                <span className="inline-flex items-center justify-center w-[18px] h-[18px] rounded-full bg-amber-400 dark:bg-amber-500 text-white text-[9px] font-bold leading-none shadow-sm" title={`${conv.notes_count ?? 0} note${(conv.notes_count ?? 0) !== 1 ? 's' : ''}`}>
                                                                     <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
                                                                         <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                                                     </svg>

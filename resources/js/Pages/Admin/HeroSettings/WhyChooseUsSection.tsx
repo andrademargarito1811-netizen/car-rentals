@@ -1,9 +1,10 @@
 import { useState, useRef, useMemo } from 'react';
 import { useForm, router } from '@inertiajs/react';
 import { useRoute } from 'ziggy-js';
+import { Search, X } from 'lucide-react';
 import SlidePanel from '@/Components/SlidePanel';
 import { cn } from '@/lib/utils';
-import * as LucideIcons from 'lucide-react';
+import { DynamicIcon as BaseDynamicIcon, CURIATED_ICONS } from '@/lib/icons';
 
 export interface WhyChooseUsItem {
     id: number;
@@ -14,75 +15,8 @@ export interface WhyChooseUsItem {
     is_active: boolean;
 }
 
-const CURIATED_ICONS = [
-    { name: 'Shield', label: 'Shield' },
-    { name: 'ShieldCheck', label: 'Verified' },
-    { name: 'CircleDollarSign', label: 'Best Price' },
-    { name: 'CreditCard', label: 'Payment' },
-    { name: 'Zap', label: 'Quick' },
-    { name: 'MapPin', label: 'Location' },
-    { name: 'Headphones', label: 'Support' },
-    { name: 'Star', label: 'Quality' },
-    { name: 'Car', label: 'Car' },
-    { name: 'Heart', label: 'Love' },
-    { name: 'HeartHandshake', label: 'Trust' },
-    { name: 'CheckCircle', label: 'Guaranteed' },
-    { name: 'Sparkles', label: 'Premium' },
-    { name: 'Award', label: 'Award' },
-    { name: 'ThumbsUp', label: 'Approved' },
-    { name: 'Lock', label: 'Secure' },
-    { name: 'BadgeCheck', label: 'Verified' },
-    { name: 'Rocket', label: 'Fast' },
-    { name: 'Timer', label: 'Punctual' },
-    { name: 'LifeBuoy', label: 'Help' },
-    { name: 'Globe', label: 'Global' },
-    { name: 'Trophy', label: 'Best' },
-    { name: 'Coins', label: 'Savings' },
-    { name: 'PiggyBank', label: 'Savings' },
-    { name: 'Target', label: 'Focused' },
-    { name: 'Users', label: 'Team' },
-    { name: 'Smile', label: 'Happy' },
-    { name: 'Sun', label: 'Experience' },
-    { name: 'Truck', label: 'Fleet' },
-    { name: 'PhoneCall', label: 'Contact' },
-    { name: 'MessageSquare', label: 'Chat' },
-    { name: 'BadgePercent', label: 'Deals' },
-    { name: 'Gem', label: 'Premium' },
-    { name: 'Handshake', label: 'Partnership' },
-    { name: 'DollarSign', label: 'Money' },
-    { name: 'ArrowRight', label: 'Arrow' },
-    { name: 'Check', label: 'Check' },
-    { name: 'Clock', label: 'Time' },
-    { name: 'Compass', label: 'Guide' },
-    { name: 'Fuel', label: 'Fuel' },
-    { name: 'Gauge', label: 'Speed' },
-    { name: 'Key', label: 'Key' },
-    { name: 'Map', label: 'Map' },
-    { name: 'Navigation', label: 'Navigate' },
-    { name: 'Route', label: 'Route' },
-    { name: 'Scan', label: 'Scan' },
-    { name: 'Search', label: 'Search' },
-    { name: 'ShieldHalf', label: 'Insured' },
-    { name: 'Snowflake', label: 'AC' },
-    { name: 'Tags', label: 'Tags' },
-    { name: 'TrendingUp', label: 'Trending' },
-    { name: 'Wallet', label: 'Wallet' },
-    { name: 'Wifi', label: 'WiFi' },
-    { name: 'Wind', label: 'AC' },
-];
-
 function DynamicIcon({ name, className }: { name: string | null; className?: string }) {
-    if (!name) return <span className={cn('text-lg', className)}>✦</span>;
-    if (/^M[\s\d]/.test(name)) {
-        return (
-            <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
-                <path strokeLinecap="round" strokeLinejoin="round" d={name} />
-            </svg>
-        );
-    }
-    const IconComp = (LucideIcons as any)[name];
-    if (IconComp) return <IconComp className={className} />;
-    return <span className={cn('text-lg', className)}>✦</span>;
+    return <BaseDynamicIcon name={name} className={className} fallback={<span className={cn('text-lg', className)}>✦</span>} />;
 }
 
 export default function WhyChooseUsSection({ items, heading, subheading, onHeadingChange, onSubheadingChange }: {
@@ -405,7 +339,7 @@ export default function WhyChooseUsSection({ items, heading, subheading, onHeadi
 
                         {/* Search */}
                         <div className="relative mb-3">
-                            <LucideIcons.Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400" />
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400" />
                             <input type="text" value={iconSearch} onChange={e => setIconSearch(e.target.value)}
                                 placeholder="Search icons..."
                                 className="w-full pl-9 pr-4 py-2 rounded-xl border border-surface-200 dark:border-surface-600 bg-white dark:bg-surface-700 text-surface-900 dark:text-white text-sm focus:ring-2 focus:ring-accent-400 focus:border-transparent" />
@@ -440,7 +374,7 @@ export default function WhyChooseUsSection({ items, heading, subheading, onHeadi
                                 <span className="text-xs font-semibold text-surface-600 dark:text-surface-300 flex-1">{form.data.icon_svg}</span>
                                 <button type="button" onClick={() => form.setData('icon_svg', '')}
                                     className="p-1 rounded-md text-surface-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
-                                    <LucideIcons.X className="w-3.5 h-3.5" />
+                                    <X className="w-3.5 h-3.5" />
                                 </button>
                             </div>
                         )}

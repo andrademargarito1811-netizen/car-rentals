@@ -6,54 +6,18 @@ use App\Models\Faq;
 use App\Models\Testimonial;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
+use Throwable;
 
 class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        if (DB::table('tblvehicle_location')->count() === 0) {
-            DB::table('tblvehicle_location')->insert([
-                [
-                    'location' => 'West Plaza Hotel @ Lebuu St.',
-                    'address' => 'Lebuu St., Koror, Palau',
-                    'subtitle' => 'West Plaza',
-                    'city' => 'Koror',
-                    'phone' => '+680 833-2211',
-                    'hours' => "Monday: 9:00 AM - 6:00 PM\nTuesday: 9:00 AM - 6:00 PM\nWednesday: 9:00 AM - 6:00 PM\nThursday: 9:00 AM - 6:00 PM\nFriday: 9:00 AM - 6:00 PM\nSaturday: 9:00 AM - 5:00 PM\nSunday: Closed",
-                    'lat' => 7.3434310,
-                    'lng' => 134.4794690,
-                    'description' => 'Located in the heart of Koror at West Plaza Hotel, our flagship branch offers convenient access to downtown shops, restaurants, and the scenic waterfront.',
-                    'features' => json_encode(['Free WiFi', 'Parking Available', '24/7 Drop-off', 'Shuttle Service']),
-                    'sort_order' => 1,
-                    'is_active' => true,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ],
-                [
-                    'location' => 'Airport',
-                    'address' => 'Roman Tmetuchl International Airport, Palau',
-                    'subtitle' => 'Airport',
-                    'city' => 'Airai',
-                    'phone' => '+680 587-8300',
-                    'hours' => "Monday: 6:00 AM - 10:00 PM\nTuesday: 6:00 AM - 10:00 PM\nWednesday: 6:00 AM - 10:00 PM\nThursday: 6:00 AM - 10:00 PM\nFriday: 6:00 AM - 10:00 PM\nSaturday: 6:00 AM - 10:00 PM\nSunday: 6:00 AM - 10:00 PM",
-                    'lat' => 7.3671810,
-                    'lng' => 134.5430830,
-                    'description' => 'Conveniently located at Roman Tmetuchl International Airport, perfect for travelers arriving in Palau. Pick up your rental car right after you land.',
-                    'features' => json_encode(['Free WiFi', 'Parking Available', '24/7 Drop-off', 'Shuttle Service', 'Flight Tracking']),
-                    'sort_order' => 2,
-                    'is_active' => true,
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ],
-            ]);
-        }
-
         if (DB::table('tblvehicle_classes')->count() === 0) {
             DB::table('tblvehicle_classes')->insert([
                 ['class_no' => 'ECONOMY',     'class_desc' => 'Economy',        'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
                 ['class_no' => 'REGULAR_SUV', 'class_desc' => 'Regular SUV',    'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
                 ['class_no' => 'COMPACT',     'class_desc' => 'Compact',        'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
-                ['class_no' => 'FULLSIZE_VAN','class_desc' => 'Fullsize Van',   'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+                ['class_no' => 'FULLSIZE_VAN', 'class_desc' => 'Fullsize Van',   'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
                 ['class_no' => 'FLATBEDS',    'class_desc' => 'FlatBeds',       'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
                 ['class_no' => 'VANS',        'class_desc' => 'Vans',           'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
                 ['class_no' => 'FULL_SUV',    'class_desc' => 'Full Size SUV',  'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
@@ -68,7 +32,7 @@ class DatabaseSeeder extends Seeder
                 ['available_desc' => 'Accident',            'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
                 ['available_desc' => 'Sold',                'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
                 ['available_desc' => 'Pending Sale',        'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
-                ['available_desc' => 'List on Site for Sale','is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+                ['available_desc' => 'List on Site for Sale', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
                 ['available_desc' => 'Disposed',            'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
             ]);
         }
@@ -90,6 +54,84 @@ class DatabaseSeeder extends Seeder
                 ['name' => 'Michael Chen', 'role' => 'Family Vacation', 'content' => 'Best rental experience we have ever had. Affordable rates and excellent vehicles.', 'rating' => 5, 'sort_order' => 1, 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
                 ['name' => 'Emma Davis', 'role' => 'Weekend Explorer', 'content' => 'Quick pickup, great car, and hassle-free return. Will definitely use again!', 'rating' => 5, 'sort_order' => 2, 'is_active' => true, 'created_at' => now(), 'updated_at' => now()],
             ]);
+        }
+
+        try {
+            $this->call(TransferUsersFromProdSeeder::class);
+        } catch (Throwable $e) {
+            $this->command?->warn('Skipped prod user transfer: '.$e->getMessage());
+        }
+
+        try {
+            $this->call(TransferAboutUsPageSettingsFromProdSeeder::class);
+        } catch (Throwable $e) {
+            $this->command?->warn('Skipped prod about_us_page_settings transfer: '.$e->getMessage());
+        }
+
+        try {
+            $this->call(TransferExtraChargesFromProdSeeder::class);
+        } catch (Throwable $e) {
+            $this->command?->warn('Skipped prod extra_charges transfer: '.$e->getMessage());
+        }
+
+        try {
+            $this->call(TransferFleetPageSettingsFromProdSeeder::class);
+        } catch (Throwable $e) {
+            $this->command?->warn('Skipped prod fleet_page_settings transfer: '.$e->getMessage());
+        }
+
+        try {
+            $this->call(TransferHeroImagesFromProdSeeder::class);
+        } catch (Throwable $e) {
+            $this->command?->warn('Skipped prod hero_images transfer: '.$e->getMessage());
+        }
+
+        try {
+            $this->call(TransferHeroSettingsFromProdSeeder::class);
+        } catch (Throwable $e) {
+            $this->command?->warn('Skipped prod hero_settings transfer: '.$e->getMessage());
+        }
+
+        try {
+            $this->call(TransferInvoiceSettingsFromProdSeeder::class);
+        } catch (Throwable $e) {
+            $this->command?->warn('Skipped prod invoice_settings transfer: '.$e->getMessage());
+        }
+
+        try {
+            $this->call(TransferLegalDocumentsFromProdSeeder::class);
+        } catch (Throwable $e) {
+            $this->command?->warn('Skipped prod legal_documents transfer: '.$e->getMessage());
+        }
+
+        try {
+            $this->call(TransferLocationsPageSettingsFromProdSeeder::class);
+        } catch (Throwable $e) {
+            $this->command?->warn('Skipped prod locations_page_settings transfer: '.$e->getMessage());
+        }
+
+        try {
+            $this->call(TransferReservationHeroImagesFromProdSeeder::class);
+        } catch (Throwable $e) {
+            $this->command?->warn('Skipped prod reservation_hero_images transfer: '.$e->getMessage());
+        }
+
+        try {
+            $this->call(TransferTblVehicleLocationFromProdSeeder::class);
+        } catch (Throwable $e) {
+            $this->command?->warn('Skipped prod tblvehicle_location transfer: '.$e->getMessage());
+        }
+
+        try {
+            $this->call(TransferTaxesFromProdSeeder::class);
+        } catch (Throwable $e) {
+            $this->command?->warn('Skipped prod taxes transfer: '.$e->getMessage());
+        }
+
+        try {
+            $this->call(TransferTaxVehicleClassFromProdSeeder::class);
+        } catch (Throwable $e) {
+            $this->command?->warn('Skipped prod tax_vehicle_class transfer: '.$e->getMessage());
         }
     }
 }

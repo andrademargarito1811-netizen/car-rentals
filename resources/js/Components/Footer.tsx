@@ -1,4 +1,5 @@
 import { usePage, Link } from '@inertiajs/react';
+import { footerLogoUrl } from '@/lib/utils';
 
 interface LinkItem {
     label: string;
@@ -38,7 +39,7 @@ const socialIcons: Record<string, string> = {
 };
 
 export default function Footer() {
-    const { footerSettings } = usePage().props as { footerSettings: FooterSettings | null };
+    const { footerSettings } = usePage().props as unknown as { footerSettings: FooterSettings | null };
     const currentYear = new Date().getFullYear();
 
     const s = footerSettings;
@@ -47,9 +48,7 @@ export default function Footer() {
         return null;
     }
 
-    const logoUrl = s.logo_path
-        ? (s.logo_path.startsWith('/') ? s.logo_path : `/storage/${s.logo_path}`)
-        : '/img/company_logo/company-logos-01.png';
+    const logoUrl = footerLogoUrl(s.logo_path);
 
     return (
         <footer className="relative bg-brand-900 overflow-hidden">

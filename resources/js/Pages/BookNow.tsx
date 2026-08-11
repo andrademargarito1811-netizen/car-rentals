@@ -52,8 +52,8 @@ interface BookNowProps {
     car?: CarLike;
     rental?: RentalLike;
     booked_dates?: BookedDateInfo[];
-    reservationSettings?: {
-        booking_terms: string | null;
+    legalDocument?: {
+        content: string | null;
     } | null;
 }
 
@@ -146,7 +146,7 @@ const sampleRental: RentalLike = {
     return_location: LOCATIONS[0],
 };
 
-export default function BookNow({ carId, car = sampleCar, rental, booked_dates = [], reservationSettings }: BookNowProps) {
+export default function BookNow({ carId, car = sampleCar, rental, booked_dates = [], legalDocument }: BookNowProps) {
     const route = useRoute();
 
     const effectiveRental: RentalLike = rental ?? sampleRental;
@@ -205,14 +205,12 @@ export default function BookNow({ carId, car = sampleCar, rental, booked_dates =
 
     const billingDays = useMemo(() => {
         if (!data.pickup_date || !data.return_date) return 0;
-        const diff = Math.round(
-            (new Date(data.return_date).getTime() - new Date(data.pickup_date).getTime()) /
-                86400000,
-        );
-        return Math.max(1, diff);
-    }, [data.pickup_date, data.return_date]);
+        const start = new Date(`${data.pickup_date}T${data.pickup_time || '00:00'}:00`);
+        const end = new Date(`${data.return_date}T${data.return_time || '23:59'}:00`);
+        return Math.max(1, Math.ceil((end.getTime() - start.getTime()) / 86400000));
+    }, [data.pickup_date, data.pickup_time, data.return_date, data.return_time]);
 
-    const toMins = (t: string) => {
+    const toMins = (t: string | null | undefined) => {
         if (!t) return null;
         const [h, m] = t.split(':').map(Number);
         return h * 60 + m;
@@ -888,8 +886,8 @@ export default function BookNow({ carId, car = sampleCar, rental, booked_dates =
                             </div>
 
                             <div className="max-h-48 overflow-y-auto rounded-2xl border border-surface-100 bg-surface-50 p-4 text-sm leading-relaxed text-surface-600 prose prose-sm max-w-none">
-                                {reservationSettings?.booking_terms ? (
-                                    <div dangerouslySetInnerHTML={{ __html: reservationSettings.booking_terms }} />
+                                {legalDocument?.content ? (
+                                    <div dangerouslySetInnerHTML={{ __html: legalDocument.content }} />
                                 ) : (
                                     <p className="text-surface-400 italic">No terms and conditions have been set.</p>
                                 )}
@@ -1232,7 +1230,7 @@ function CarAvailabilityCalendar({
     const primaryDays = useMemo(() => buildMonthDays(currentMonth), [currentMonth, bookedMap, pickupDate, returnDate]);
     const secondaryDays = useMemo(() => buildMonthDays(nextMonth), [nextMonth, bookedMap, pickupDate, returnDate]);
 
-    const selectingReturn = pickupDate && !returnDate;
+    const selectingReturn = !!pickupDate && !returnDate;
 
     const handleDayClick = (d: DayCell) => {
         if (d.day === 0 || d.isPast || d.status === 'full') return;

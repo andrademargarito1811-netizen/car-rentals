@@ -34,7 +34,7 @@ class WhyBookController extends Controller
 
         Cache::forget('shared.whyBookItems');
 
-        return redirect()->route('admin.why-book.index')->with('success', 'Item created successfully.');
+        return redirect()->route('admin.hero-settings', ['page' => 'reservation'])->with('success', 'Item created successfully.');
     }
 
     public function update(Request $request, WhyBookItem $whyBookItem)
@@ -52,7 +52,24 @@ class WhyBookController extends Controller
 
         Cache::forget('shared.whyBookItems');
 
-        return redirect()->route('admin.why-book.index')->with('success', 'Item updated successfully.');
+        return redirect()->route('admin.hero-settings', ['page' => 'reservation'])->with('success', 'Item updated successfully.');
+    }
+
+    public function reorder(Request $request)
+    {
+        $request->validate([
+            'items' => 'required|array',
+            'items.*.id' => 'required|exists:why_book_items,id',
+            'items.*.sort_order' => 'required|integer|min:0',
+        ]);
+
+        foreach ($request->items as $item) {
+            WhyBookItem::where('id', $item['id'])->update(['sort_order' => $item['sort_order']]);
+        }
+
+        Cache::forget('shared.whyBookItems');
+
+        return redirect()->back()->with('success', 'Items reordered.');
     }
 
     public function destroy(WhyBookItem $whyBookItem)
@@ -61,6 +78,6 @@ class WhyBookController extends Controller
 
         Cache::forget('shared.whyBookItems');
 
-        return redirect()->route('admin.why-book.index')->with('success', 'Item deleted successfully.');
+        return redirect()->route('admin.hero-settings', ['page' => 'reservation'])->with('success', 'Item deleted successfully.');
     }
 }

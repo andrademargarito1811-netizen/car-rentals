@@ -2,9 +2,10 @@
 
 namespace App\Models;
 
-use Database\Factories\CarFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Car extends Model
 {
@@ -19,6 +20,7 @@ class Car extends Model
         'daily_rate', 'sale_date', 'sale_price', 'sold_to',
         'engine', 'transmission', 'fuel_type', 'fuel_charges',
         'fuel_consumption', 'co2_emission',
+        'free_km_per_day', 'additional_km_rate', 'fuel_tank_capacity',
         'availability_id', 'air_conditioned',
         'description', 'image_path',
     ];
@@ -45,12 +47,12 @@ class Car extends Model
         ];
     }
 
-    public function bookings(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function bookings(): HasMany
     {
         return $this->hasMany(Booking::class);
     }
 
-    public function reviews(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function reviews(): HasMany
     {
         return $this->hasMany(Review::class, 'car_id', 'id');
     }
@@ -58,9 +60,13 @@ class Car extends Model
     public function getAvgRatingAttribute(): float
     {
         if (array_key_exists('reviews_avg_rating', $this->attributes)) {
-            return (float) $this->attributes['reviews_avg_rating'] ?? 0;
+            return (float) $this->attributes['reviews_avg_rating'];
         }
-        return $this->relationLoaded('reviews') ? (float) $this->reviews->avg('rating') ?? 0 : 0;
+        if ($this->relationLoaded('reviews')) {
+            return (float) ($this->reviews->filter(fn ($r) => $r->rating > 0)->avg('rating') ?? 0);
+        }
+
+        return (float) ($this->attributes['avg_rating'] ?? 0);
     }
 
     public function getRatingsCountAttribute(): int
@@ -68,25 +74,30 @@ class Car extends Model
         if (array_key_exists('reviews_count', $this->attributes)) {
             return (int) $this->attributes['reviews_count'];
         }
-        return $this->relationLoaded('reviews') ? $this->reviews->count() : 0;
+        if ($this->relationLoaded('reviews')) {
+            return $this->reviews->where('rating', '>', 0)->count();
+        }
+
+        return (int) ($this->attributes['ratings_count'] ?? 0);
     }
 
     public function scopeWithReviewStats($query)
     {
-        return $query->withAvg('reviews', 'rating')->withCount('reviews');
+        return $query->withAvg(['reviews' => fn ($q) => $q->where('rating', '>', 0)->where('is_approved', true)], 'rating')
+            ->withCount(['reviews' => fn ($q) => $q->where('rating', '>', 0)->where('is_approved', true)]);
     }
 
-    public function location(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    public function location(): BelongsTo
     {
         return $this->belongsTo(VehicleLocation::class, 'location_id', 'location_id');
     }
 
-    public function vehicleClass(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    public function vehicleClass(): BelongsTo
     {
         return $this->belongsTo(VehicleClass::class, 'class_id', 'class_no');
     }
 
-    public function availability(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    public function availability(): BelongsTo
     {
         return $this->belongsTo(VehicleAvailability::class, 'availability_id', 'available_id');
     }
@@ -103,24 +114,12 @@ class Car extends Model
 
     public function scopeAvailable($query)
     {
-        return $query->whereHas('availability', fn($q) => $q->where('available_desc', 'available'));
+        return $query->whereHas('availability', fn ($q) => $q->where('available_desc', 'available'));
     }
 
     public function getGraceMinutes(): int
     {
         return $this->vehicleClass?->grace_minutes ?? config('reservation.default_grace_minutes', 30);
-    }
-
-    public function scopeAvailableBetween($query, $startDate, $endDate)
-    {
-        $graceDefault = config('reservation.default_grace_minutes', 30);
-        return $query->whereDoesntHave('bookings', function ($q) use ($startDate, $endDate, $graceDefault, $query) {
-            $startDT = $startDate . ' 00:00:00';
-            $endDT = $endDate . ' 23:59:59';
-            $q->whereIn('status', ['confirmed', 'active'])
-              ->whereRaw('CAST(start_date AS DATETIME) + COALESCE(CAST(pickup_time AS DATETIME), \'00:00:00\') < ?', [$endDT])
-              ->whereRaw('DATEADD(MINUTE, COALESCE((SELECT TOP 1 grace_minutes FROM tblvehicle_classes WHERE class_no = tblcars.class_id), ' . $graceDefault . '), CAST(end_date AS DATETIME) + COALESCE(CAST(return_time AS DATETIME), \'23:59:59\')) > ?', [$startDT]);
-        });
     }
 
     public function bookedDates(int $days = 60): array
@@ -154,8 +153,12 @@ class Car extends Model
                 if ($dateStr === $startStr && $dateStr === $endStr) {
                     // Same-day booking
                     $entry = ['date' => $dateStr, 'status' => 'partial'];
-                    if ($booking->pickup_time) $entry['available_before'] = substr($booking->pickup_time, 0, 5);
-                    if ($booking->return_time) $entry['available_after'] = $this->addMinutesToTime(substr($booking->return_time, 0, 5), $graceMinutes);
+                    if ($booking->pickup_time) {
+                        $entry['available_before'] = substr($booking->pickup_time, 0, 5);
+                    }
+                    if ($booking->return_time) {
+                        $entry['available_after'] = $this->addMinutesToTime(substr($booking->return_time, 0, 5), $graceMinutes);
+                    }
                     $this->mergeBookedDate($result, $entry);
                 } elseif ($dateStr === $startStr && $booking->pickup_time) {
                     // Start date — available before pickup_time
@@ -194,14 +197,16 @@ class Car extends Model
         $total = $h * 60 + $m + $minutes;
         $h = intdiv($total, 60);
         $m = $total % 60;
+
         return sprintf('%02d:%02d', min($h, 23), $m);
     }
 
     private function mergeBookedDate(array &$result, array $entry): void
     {
         $dateStr = $entry['date'];
-        if (!isset($result[$dateStr])) {
+        if (! isset($result[$dateStr])) {
             $result[$dateStr] = $entry;
+
             return;
         }
 
@@ -210,6 +215,7 @@ class Car extends Model
         // If either is full, result is full
         if ($existing['status'] === 'full' || $entry['status'] === 'full') {
             $result[$dateStr] = ['date' => $dateStr, 'status' => 'full'];
+
             return;
         }
 
@@ -234,15 +240,25 @@ class Car extends Model
 
     private function minTime(?string $a, ?string $b): ?string
     {
-        if ($a === null) return $b;
-        if ($b === null) return $a;
+        if ($a === null) {
+            return $b;
+        }
+        if ($b === null) {
+            return $a;
+        }
+
         return $a <= $b ? $a : $b;
     }
 
     private function maxTime(?string $a, ?string $b): ?string
     {
-        if ($a === null) return $b;
-        if ($b === null) return $a;
+        if ($a === null) {
+            return $b;
+        }
+        if ($b === null) {
+            return $a;
+        }
+
         return $a >= $b ? $a : $b;
     }
 }

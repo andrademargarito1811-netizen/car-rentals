@@ -1,8 +1,9 @@
 import { useState, useMemo } from 'react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import { usePage } from '@inertiajs/react';
 import { useRoute } from 'ziggy-js';
+import { useBookingBroadcast } from '@/Hooks/useBookingBroadcast';
 import { Badge } from '@/Components/ui/badge';
 import { Button } from '@/Components/ui/button';
 import {
@@ -24,8 +25,10 @@ import {
 } from 'lucide-react';
 
 interface AdminDashboardProps {
+    period: string;
     total_cars: number;
     available_cars: number;
+    available_for_rent: number;
     rented_cars: number;
     total_bookings: number;
     active_bookings: number;
@@ -115,8 +118,17 @@ const PERIODS: { key: Period; label: string }[] = [
     { key: 'all', label: 'All Time' },
 ];
 
+const PERIOD_LABELS: Record<Period, string> = {
+    today: 'Today',
+    '7d': 'Last 7 days',
+    '30d': 'Last 30 days',
+    '90d': 'Last 90 days',
+    all: 'All time',
+};
+
 export default function AdminDashboard({
-    total_cars, available_cars, rented_cars,
+    period: initialPeriod,
+    total_cars, available_cars, available_for_rent, rented_cars,
     total_bookings, active_bookings, total_users, total_guests,
     revenue, recent_bookings, revenue_trend,
     booking_status_breakdown, upcoming_pickups, upcoming_returns,
@@ -125,9 +137,24 @@ export default function AdminDashboard({
 }: AdminDashboardProps) {
     const route = useRoute();
     const { auth } = usePage().props as any;
-    const [period, setPeriod] = useState<Period>('30d');
+    const [period, setPeriod] = useState<Period>(PERIODS.some(p => p.key === initialPeriod) ? initialPeriod as Period : '30d');
 
-    const hasAlerts = unread_messages > 0 || overdue_bookings > 0 || available_cars <= 3;
+    useBookingBroadcast([
+        'total_cars', 'available_cars', 'available_for_rent', 'rented_cars',
+        'total_bookings', 'active_bookings', 'revenue', 'recent_bookings',
+        'revenue_trend', 'booking_status_breakdown', 'upcoming_pickups',
+        'upcoming_returns', 'top_rented_cars', 'revenue_by_location',
+        'overdue_bookings', 'heatmap_data',
+    ]);
+
+    const changePeriod = (p: Period) => {
+        if (p === period) return;
+        router.get(route('admin.dashboard'), { period: p }, {
+            preserveScroll: true,
+        });
+    };
+
+    const hasAlerts = unread_messages > 0 || overdue_bookings > 0 || available_for_rent <= 3;
 
     const todayStr = new Date().toISOString().split('T')[0];
     const heatmapFull = useMemo(() => Array.from({ length: 30 }, (_, i) => {
@@ -162,13 +189,13 @@ export default function AdminDashboard({
         },
         {
             label: 'Currently Rented', value: rented_cars, sub: `${fleetUtilization}% fleet used`,
-            icon: CarFront, href: route('admin.bookings.index'),
+            icon: CarFront, href: route('admin.reservations.index'),
             gradient: 'from-orange-400/20 to-rose-500/10', iconGradient: 'from-orange-500 to-rose-600',
             change: null,
         },
         {
             label: 'Active Bookings', value: active_bookings, sub: `${total_bookings} total`,
-            icon: CalendarCheck, href: route('admin.bookings.index'),
+            icon: CalendarCheck, href: route('admin.reservations.index'),
             gradient: 'from-emerald-400/20 to-emerald-500/10', iconGradient: 'from-emerald-500 to-emerald-600',
             change: null,
         },
@@ -218,7 +245,7 @@ export default function AdminDashboard({
                                     {PERIODS.map((p) => (
                                         <button
                                             key={p.key}
-                                            onClick={() => setPeriod(p.key)}
+                                            onClick={() => changePeriod(p.key)}
                                             className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
                                                 period === p.key
                                                     ? 'bg-brand-600 text-white shadow-sm'
@@ -240,13 +267,13 @@ export default function AdminDashboard({
 
                         {hasAlerts && (
                             <div className="grid gap-3 sm:grid-cols-3">
-                                {available_cars <= 3 && (
+                                {available_for_rent <= 3 && (
                                     <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/30">
                                         <div className="w-9 h-9 rounded-lg bg-amber-100 dark:bg-amber-800/40 flex items-center justify-center shrink-0">
                                             <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
                                         </div>
                                         <p className="text-xs font-semibold text-amber-800 dark:text-amber-300">
-                                            Only {available_cars} car{available_cars !== 1 ? 's' : ''} available
+                                            Only {available_for_rent} car{available_for_rent !== 1 ? 's' : ''} free to rent today
                                         </p>
                                     </div>
                                 )}
@@ -549,13 +576,13 @@ export default function AdminDashboard({
                                     <TrendingUp className="w-5 h-5 text-brand-600 dark:text-brand-400" />
                                     <div>
                                         <CardTitle>Top Cars</CardTitle>
-                                        <CardDescription>This month</CardDescription>
+                                        <CardDescription>{PERIOD_LABELS[period]}</CardDescription>
                                     </div>
                                 </div>
                             </CardHeader>
                             <CardContent>
                                 {top_rented_cars.length === 0 ? (
-                                    <p className="text-xs text-surface-400 dark:text-surface-500 text-center py-6 italic">No rental data this month</p>
+                                    <p className="text-xs text-surface-400 dark:text-surface-500 text-center py-6 italic">No rental data for this period</p>
                                 ) : (
                                     <div className="space-y-2">
                                         {top_rented_cars.map((car, i) => (
@@ -595,7 +622,7 @@ export default function AdminDashboard({
                                     </div>
                                 </div>
                                 <Button variant="outline" size="sm" asChild className="text-xs">
-                                    <Link href={route('admin.bookings.index')}>
+                                    <Link href={route('admin.reservations.index')}>
                                         View all <ArrowRight className="w-3.5 h-3.5" />
                                     </Link>
                                 </Button>

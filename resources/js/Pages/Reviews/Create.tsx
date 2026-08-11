@@ -20,9 +20,10 @@ interface ReviewCreateProps {
             name: string;
         };
     };
+    submitUrl: string;
 }
 
-export default function ReviewCreate({ booking }: ReviewCreateProps) {
+export default function ReviewCreate({ booking, submitUrl }: ReviewCreateProps) {
     const { data, setData, post, processing, errors } = useForm({
         rating: 0,
         comment: '',
@@ -32,7 +33,7 @@ export default function ReviewCreate({ booking }: ReviewCreateProps) {
 
     function submit(e: React.FormEvent) {
         e.preventDefault();
-        post(route('reviews.store', booking.reference_code));
+        post(submitUrl);
     }
 
     const customerName = booking.guest

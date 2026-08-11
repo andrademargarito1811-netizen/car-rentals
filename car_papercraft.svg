@@ -1,0 +1,123 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600">
+  <style>
+    .line { fill: none; stroke: #000; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  </style>
+  
+  <!-- Bottom/Underside View (Top) -->
+  <g transform="translate(180, 20)">
+    <!-- Main body outline -->
+    <path class="line" d="M 40,70 L 40,30 Q 40,15 55,15 L 365,15 Q 380,15 380,30 L 380,70"/>
+    <!-- Left wheel area -->
+    <circle class="line" cx="100" cy="25" r="22"/>
+    <circle class="line" cx="100" cy="25" r="12"/>
+    <!-- Right wheel area -->
+    <circle class="line" cx="320" cy="25" r="22"/>
+    <circle class="line" cx="320" cy="25" r="12"/>
+    <!-- Undercarriage lines -->
+    <line class="line" x1="60" y1="45" x2="360" y2="45"/>
+    <line class="line" x1="150" y1="30" x2="150" y2="60"/>
+    <line class="line" x1="270" y1="30" x2="270" y2="60"/>
+    <!-- Fold tabs left/right -->
+    <path class="line" d="M 40,30 L 20,30 L 20,70 L 40,70"/>
+    <path class="line" d="M 380,30 L 400,30 L 400,70 L 380,70"/>
+  </g>
+
+  <!-- Top View (Center) -->
+  <g transform="translate(180, 150)">
+    <!-- Main body -->
+    <path class="line" d="M 40,45 Q 40,15 70,15 L 350,15 Q 380,15 380,45 L 380,105 Q 380,135 350,135 L 70,135 Q 40,135 40,105 Z"/>
+    <!-- Hood section -->
+    <path class="line" d="M 40,55 L 130,55 L 130,120 L 40,120"/>
+    <!-- Windshield -->
+    <path class="line" d="M 130,30 L 175,15 L 175,135 L 130,120"/>
+    <!-- Roof -->
+    <rect class="line" x="175" y="20" width="110" height="110" rx="3"/>
+    <!-- Sunroof -->
+    <rect class="line" x="205" y="50" width="50" height="25" rx="2"/>
+    <!-- Rear window -->
+    <path class="line" d="M 285,15 L 330,30 L 330,120 L 285,135"/>
+    <!-- Trunk -->
+    <path class="line" d="M 330,55 L 380,55 L 380,120 L 330,120"/>
+    <!-- Fold tabs -->
+    <path class="line" d="M 40,45 L 20,45 L 20,120 L 40,120"/>
+    <path class="line" d="M 380,45 L 400,45 L 400,120 L 380,120"/>
+  </g>
+
+  <!-- Front Piece (Left of top view) -->
+  <g transform="translate(40, 175)">
+    <path class="line" d="M 15,15 L 115,15 L 125,30 L 125,100 L 115,115 L 15,115 L 5,100 L 5,30 Z"/>
+    <!-- Headlights -->
+    <rect class="line" x="18" y="35" width="28" height="18" rx="4"/>
+    <rect class="line" x="89" y="35" width="28" height="18" rx="4"/>
+    <!-- Grille -->
+    <line class="line" x1="40" y1="65" x2="100" y2="65"/>
+    <line class="line" x1="40" y1="75" x2="100" y2="75"/>
+    <line class="line" x1="40" y1="85" x2="100" y2="85"/>
+    <!-- Bumper -->
+    <line class="line" x1="20" y1="100" x2="120" y2="100"/>
+  </g>
+
+  <!-- Back Piece (Right of top view) -->
+  <g transform="translate(645, 175)">
+    <path class="line" d="M 15,15 L 115,15 L 125,30 L 125,100 L 115,115 L 15,115 L 5,100 L 5,30 Z"/>
+    <!-- Taillights -->
+    <rect class="line" x="18" y="35" width="28" height="20" rx="3"/>
+    <rect class="line" x="89" y="35" width="28" height="20" rx="3"/>
+    <!-- Trunk line -->
+    <line class="line" x1="40" y1="68" x2="100" y2="68"/>
+    <!-- License plate area -->
+    <rect class="line" x="45" y="82" width="50" height="14" rx="2"/>
+  </g>
+
+  <!-- Left Side View (Bottom Left) -->
+  <g transform="translate(70, 360)">
+    <!-- Body -->
+    <path class="line" d="M 20,70 L 20,42 Q 20,22 42,22 L 275,22 Q 295,22 310,35 L 328,52 L 328,70 Q 328,90 308,90 L 42,90 Q 20,90 20,70"/>
+    <!-- Front wheel well -->
+    <path class="line" d="M 65,70 Q 65,52 82,52 L 118,52 Q 135,52 135,70"/>
+    <!-- Rear wheel well -->
+    <path class="line" d="M 215,70 Q 215,52 232,52 L 268,52 Q 285,52 285,70"/>
+    <!-- Front wheel -->
+    <circle class="line" cx="100" cy="78" r="18"/>
+    <circle class="line" cx="100" cy="78" r="9"/>
+    <!-- Rear wheel -->
+    <circle class="line" cx="250" cy="78" r="18"/>
+    <circle class="line" cx="250" cy="78" r="9"/>
+    <!-- Front window -->
+    <path class="line" d="M 72,26 L 72,54 L 140,54 L 155,26"/>
+    <!-- Rear window -->
+    <path class="line" d="M 155,26 L 155,54 L 220,54 L 220,26"/>
+    <!-- Door line -->
+    <line class="line" x1="147" y1="26" x2="147" y2="85"/>
+    <!-- Door handle -->
+    <line class="line" x1="105" y1="57" x2="125" y2="57"/>
+    <!-- Fold tab -->
+    <path class="line" d="M 20,42 L 5,42 L 5,70 L 20,70"/>
+  </g>
+
+  <!-- Right Side View (Bottom Right) -->
+  <g transform="translate(420, 360)">
+    <!-- Body -->
+    <path class="line" d="M 20,70 L 20,42 Q 20,22 42,22 L 275,22 Q 295,22 310,35 L 328,52 L 328,70 Q 328,90 308,90 L 42,90 Q 20,90 20,70"/>
+    <!-- Front wheel well -->
+    <path class="line" d="M 65,70 Q 65,52 82,52 L 118,52 Q 135,52 135,70"/>
+    <!-- Rear wheel well -->
+    <path class="line" d="M 215,70 Q 215,52 232,52 L 268,52 Q 285,52 285,70"/>
+    <!-- Front wheel -->
+    <circle class="line" cx="100" cy="78" r="18"/>
+    <circle class="line" cx="100" cy="78" r="9"/>
+    <!-- Rear wheel -->
+    <circle class="line" cx="250" cy="78" r="18"/>
+    <circle class="line" cx="250" cy="78" r="9"/>
+    <!-- Front window -->
+    <path class="line" d="M 72,26 L 72,54 L 140,54 L 155,26"/>
+    <!-- Rear window -->
+    <path class="line" d="M 155,26 L 155,54 L 220,54 L 220,26"/>
+    <!-- Door line -->
+    <line class="line" x1="147" y1="26" x2="147" y2="85"/>
+    <!-- Door handle -->
+    <line class="line" x1="195" y1="57" x2="215" y2="57"/>
+    <!-- Fold tab -->
+    <path class="line" d="M 328,42 L 343,42 L 343,70 L 328,70"/>
+  </g>
+</svg>

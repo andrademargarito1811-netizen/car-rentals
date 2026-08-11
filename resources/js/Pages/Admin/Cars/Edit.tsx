@@ -30,7 +30,7 @@ const SECTION_FIELDS: Record<string, string[]> = {
     details: ['location_id', 'stock_number', 'license_plate', 'vin', 'brand', 'model', 'year', 'vehicle_doors', 'color'],
     specs: ['seats', 'baggage_capacity', 'maximum_weight', 'class_id'],
     pricing: ['daily_rate', 'sale_date', 'sale_price', 'sold_to'],
-    mechanical: ['engine', 'transmission', 'fuel_type', 'fuel_charges', 'fuel_consumption', 'co2_emission'],
+    mechanical: ['engine', 'transmission', 'fuel_type', 'fuel_charges', 'fuel_consumption', 'co2_emission', 'free_km_per_day', 'additional_km_rate', 'fuel_tank_capacity'],
 };
 
 const REQUIRED_FIELDS: Record<string, string> = {
@@ -85,6 +85,9 @@ interface AdminCarsEditProps {
         fuel_charges: number | null;
         fuel_consumption: number | null;
         co2_emission: number | null;
+        free_km_per_day: number | null;
+        additional_km_rate: number | null;
+        fuel_tank_capacity: number | null;
         availability_id: number | null;
     };
     locations: { location_id: number; location: string }[];
@@ -125,6 +128,9 @@ export default function AdminCarsEdit({ car, locations = [], classes = [], avail
         fuel_charges: car.fuel_charges?.toString() || '0',
         fuel_consumption: car.fuel_consumption?.toString() || '0',
         co2_emission: car.co2_emission?.toString() || '0',
+        free_km_per_day: car.free_km_per_day?.toString() || '',
+        additional_km_rate: car.additional_km_rate?.toString() || '',
+        fuel_tank_capacity: car.fuel_tank_capacity?.toString() || '',
         availability_id: car.availability_id?.toString() || '',
     });
 
@@ -572,6 +578,12 @@ export default function AdminCarsEdit({ car, locations = [], classes = [], avail
                                                                             <input type="number" step="0.01" {...f('fuel_consumption')} placeholder="e.g. 7.5" className="input-field" /></div>
                                                                         <div className="animate-fade-in" style={{ animationDelay: '0.3s' }}><Label icon="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z">CO₂ Emission (g/km)</Label>
                                                                             <input type="number" {...f('co2_emission')} placeholder="e.g. 120" className="input-field" /></div>
+                                                                        <div className="animate-fade-in" style={{ animationDelay: '0.35s' }}><Label icon="M13 10V3L4 14h7v7l9-11h-7z">Free KM / Day</Label>
+                                                                            <input type="number" {...f('free_km_per_day')} placeholder="e.g. 100" className="input-field" /></div>
+                                                                        <div className="animate-fade-in" style={{ animationDelay: '0.4s' }}><Label icon="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z">Additional KM Rate ($)</Label>
+                                                                            <input type="number" step="0.01" {...f('additional_km_rate')} placeholder="e.g. 0.50" className="input-field" /></div>
+                                                                        <div className="animate-fade-in" style={{ animationDelay: '0.45s' }}><Label icon="M13 10V3L4 14h7v7l9-11h-7z">Fuel Tank Capacity (L)</Label>
+                                                                            <input type="number" step="0.01" {...f('fuel_tank_capacity')} placeholder="e.g. 55" className="input-field" /></div>
                                                                     </div>
                                                                 )}
                                                             </div>

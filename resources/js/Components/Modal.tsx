@@ -67,7 +67,7 @@ export default function Modal({
             className="z-50 m-0 min-h-full min-w-full overflow-y-auto bg-transparent backdrop:bg-transparent"
             ref={dialog}
         >
-            <div className="fixed inset-0 z-50 overflow-y-auto px-4 py-6 sm:px-0" scroll-region>
+            <div className="fixed inset-0 z-50 overflow-y-auto px-4 py-6 sm:px-0">
                 <div
                     className={`fixed inset-0 transform transition-all ease-out duration-300 ${
                         show ? 'opacity-100' : 'opacity-0'

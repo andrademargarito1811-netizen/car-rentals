@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, usePage } from '@inertiajs/react';
+import { footerLogoUrl } from '@/lib/utils';
 
 interface GuestNavbarProps {
     canLogin?: boolean;
@@ -9,10 +10,13 @@ interface GuestNavbarProps {
 export default function GuestNavbar({ canLogin = false, canRegister = true }: GuestNavbarProps) {
     const [mobileOpen, setMobileOpen] = useState(false);
     const [scrolled, setScrolled] = useState(false);
-    const { footerSettings } = usePage().props as { footerSettings: { contact_phone: string; contact_email: string } | null };
+    const { footerSettings } = usePage().props as unknown as { footerSettings: { contact_phone: string; contact_email: string; brand_name: string; brand_tagline: string; logo_path: string | null } | null };
     const phone = footerSettings?.contact_phone || '+1 (800) 555-WEST';
     const email = footerSettings?.contact_email || 'info@westcarsales.com';
     const phoneDigits = phone.replace(/[^\d+]/g, '');
+    const brandName = footerSettings?.brand_name || 'West Car Rental';
+    const brandTagline = footerSettings?.brand_tagline || 'Crafted for the Open Road';
+    const logoUrl = footerLogoUrl(footerSettings?.logo_path);
 
     useEffect(() => {
         const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -63,20 +67,20 @@ export default function GuestNavbar({ canLogin = false, canRegister = true }: Gu
                         {/* Logo */}
                         <Link href={route('cars.index')} className="flex items-center gap-3 group shrink-0">
                             <img
-                                src="/img/company_logo/company-logos-01.png"
-                                alt="West Car Rental"
+                                src={logoUrl}
+                                alt={brandName}
                                 className="h-14 lg:h-16 w-auto object-contain group-hover:scale-105 transition-transform duration-300"
                             />
                             <div className="hidden sm:flex flex-col">
                                 <span className={`text-xl lg:text-2xl font-extrabold tracking-tight leading-none transition-colors duration-300 whitespace-nowrap ${
                                     scrolled ? 'text-brand-900' : 'text-white'
                                 }`}>
-                                    West Car Rental
+                                    {brandName}
                                 </span>
                                 <span className={`text-[10px] lg:text-[11px] font-bold tracking-[0.2em] uppercase leading-none mt-1 transition-colors duration-300 ${
                                     scrolled ? 'text-accent-500' : 'text-accent-400'
                                 }`}>
-                                    Crafted for the Open Road
+                                    {brandTagline}
                                 </span>
                             </div>
                         </Link>
@@ -192,13 +196,13 @@ export default function GuestNavbar({ canLogin = false, canRegister = true }: Gu
                     <div className="flex items-center justify-between p-5 border-b border-surface-100 bg-brand-900">
                         <div className="flex items-center gap-3">
                             <img
-                                src="/img/company_logo/company-logos-01.png"
-                                alt="West Car Rental"
+                                src={logoUrl}
+                                alt={brandName}
                                 className="h-12 w-auto object-contain"
                             />
                             <div className="flex flex-col">
-                                <span className="text-base font-extrabold text-white leading-none whitespace-nowrap">West Car Rental</span>
-                                <span className="text-[9px] font-bold text-accent-400 tracking-[0.2em] uppercase leading-none mt-0.5">Crafted for the Open Road</span>
+                                <span className="text-base font-extrabold text-white leading-none whitespace-nowrap">{brandName}</span>
+                                <span className="text-[9px] font-bold text-accent-400 tracking-[0.2em] uppercase leading-none mt-0.5">{brandTagline}</span>
                             </div>
                         </div>
                         <button

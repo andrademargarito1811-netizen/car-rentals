@@ -2,7 +2,18 @@ import { useEffect } from 'react';
 import GuestLayout from '@/Layouts/GuestLayout';
 import { Head, Link } from '@inertiajs/react';
 
-export default function PrivacyPolicy() {
+interface LegalDocument {
+    id: number;
+    slug: string;
+    title: string;
+    subtitle: string | null;
+    content: string;
+    type: 'website' | 'invoice';
+    version: number;
+    updated_at: string | null;
+}
+
+export default function PrivacyPolicy({ document: legalDocument }: { document?: LegalDocument | null }) {
     useEffect(() => {
         const observer = new IntersectionObserver(
             (entries) => {
@@ -19,9 +30,13 @@ export default function PrivacyPolicy() {
         return () => observer.disconnect();
     }, []);
 
+    const title = legalDocument?.title || 'Privacy Policy';
+    const subtitle = legalDocument?.subtitle || 'How we collect, use, and protect your personal information.';
+    const lastUpdated = legalDocument?.updated_at;
+
     return (
         <GuestLayout>
-            <Head title="Privacy Policy" />
+            <Head title={title} />
 
             <section className="relative min-h-[40vh] flex items-center justify-center overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
                 <div className="absolute inset-0">
@@ -33,105 +48,22 @@ export default function PrivacyPolicy() {
                         <svg className="w-4 h-4 text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                         </svg>
-                        <span className="text-sm font-medium text-slate-300">Last Updated: July 29, 2026</span>
+                        <span className="text-sm font-medium text-slate-300">Last Updated: {lastUpdated ? new Date(lastUpdated).toLocaleDateString() : 'N/A'}</span>
                     </div>
                     <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white tracking-tight">
-                        Privacy{' '}
-                        <span className="bg-gradient-to-r from-brand-400 via-amber-400 to-brand-400 bg-clip-text text-transparent">
-                            Policy
-                        </span>
+                        {title}
                     </h1>
                     <p className="text-lg text-slate-400 max-w-2xl mx-auto mt-4">
-                        How we collect, use, and protect your personal information.
+                        {subtitle}
                     </p>
                 </div>
             </section>
 
             <section className="py-16 sm:py-20 bg-white">
                 <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div data-animate className="opacity-0 translate-y-12 transition-all duration-700 space-y-8 text-slate-600 leading-relaxed">
-                        <p>
-                            West Car Rentals ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you visit our website or use our services.
-                        </p>
-
-                        <div>
-                            <h2 className="text-2xl font-bold text-slate-900 mb-4">1. Information We Collect</h2>
-                            <h3 className="text-lg font-semibold text-slate-900 mb-2">Personal Information</h3>
-                            <p className="mb-4">We may collect personally identifiable information such as:</p>
-                            <ul className="list-disc pl-6 space-y-2 mb-4">
-                                <li>Name, email address, phone number, and mailing address</li>
-                                <li>Driver's license number and other identification details</li>
-                                <li>Payment information (processed securely through our payment partners)</li>
-                                <li>Date of birth and age verification</li>
-                            </ul>
-
-                            <h3 className="text-lg font-semibold text-slate-900 mb-2">Non-Personal Information</h3>
-                            <p className="mb-4">We automatically collect certain non-personal information when you visit our website:</p>
-                            <ul className="list-disc pl-6 space-y-2">
-                                <li>Browser type and version</li>
-                                <li>IP address and device information</li>
-                                <li>Pages visited and time spent on our site</li>
-                                <li>Referring website addresses</li>
-                            </ul>
-                        </div>
-
-                        <div>
-                            <h2 className="text-2xl font-bold text-slate-900 mb-4">2. How We Use Your Information</h2>
-                            <p className="mb-4">We use the collected information for the following purposes:</p>
-                            <ul className="list-disc pl-6 space-y-2">
-                                <li>To process and manage your vehicle reservations</li>
-                                <li>To communicate with you about your bookings and inquiries</li>
-                                <li>To improve our website and customer service</li>
-                                <li>To send promotional offers and updates (with your consent)</li>
-                                <li>To comply with legal obligations and prevent fraud</li>
-                            </ul>
-                        </div>
-
-                        <div>
-                            <h2 className="text-2xl font-bold text-slate-900 mb-4">3. Information Sharing</h2>
-                            <p className="mb-4">We do not sell your personal information. We may share your information with:</p>
-                            <ul className="list-disc pl-6 space-y-2">
-                                <li>Service providers who assist in our business operations (payment processing, customer support)</li>
-                                <li>Law enforcement or regulatory authorities when required by law</li>
-                                <li>Business partners with your explicit consent</li>
-                            </ul>
-                        </div>
-
-                        <div>
-                            <h2 className="text-2xl font-bold text-slate-900 mb-4">4. Data Security</h2>
-                            <p>
-                                We implement appropriate technical and organizational measures to protect your personal information against unauthorized access, alteration, disclosure, or destruction. All payment transactions are encrypted using industry-standard SSL technology.
-                            </p>
-                        </div>
-
-                        <div>
-                            <h2 className="text-2xl font-bold text-slate-900 mb-4">5. Your Rights</h2>
-                            <p className="mb-4">You have the right to:</p>
-                            <ul className="list-disc pl-6 space-y-2">
-                                <li>Access your personal information held by us</li>
-                                <li>Request correction of inaccurate information</li>
-                                <li>Request deletion of your information (subject to legal requirements)</li>
-                                <li>Opt out of marketing communications at any time</li>
-                                <li>Withdraw consent where processing is based on consent</li>
-                            </ul>
-                        </div>
-
-                        <div>
-                            <h2 className="text-2xl font-bold text-slate-900 mb-4">6. Cookies</h2>
-                            <p>
-                                Our website uses cookies to enhance your browsing experience. You can control cookie settings through your browser preferences. Please refer to our Cookie Policy for more detailed information.
-                            </p>
-                        </div>
-
-                        <div>
-                            <h2 className="text-2xl font-bold text-slate-900 mb-4">7. Contact Us</h2>
-                            <p>
-                                If you have any questions about this Privacy Policy, please contact us at{' '}
-                                <a href="mailto:privacy@westcarsales.com" className="text-brand-600 hover:text-brand-700 underline">privacy@westcarsales.com</a>{' '}
-                                or call us at +1 (800) 555-WEST.
-                            </p>
-                        </div>
-                    </div>
+                    <div data-animate className="opacity-0 translate-y-12 transition-all duration-700 space-y-8 text-slate-600 leading-relaxed [&_h2]:text-2xl [&_h2]:font-bold [&_h2]:text-slate-900 [&_h2]:mb-4 [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:text-slate-900 [&_h3]:mb-2 [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:space-y-2 [&_a]:text-brand-600 [&_a]:hover:text-brand-700 [&_a]:underline"
+                        dangerouslySetInnerHTML={{ __html: legalDocument?.content || '<p>This document is not available yet.</p>' }}
+                    />
                 </div>
             </section>
 

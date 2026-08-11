@@ -18,8 +18,6 @@ class FleetPageSettingController extends Controller
             'hero_highlight' => 'required|string|max:255',
             'hero_description' => 'nullable|string',
             'hero_image' => 'nullable|image|max:5120',
-            'section_heading' => 'required|string|max:255',
-            'section_subheading' => 'required|string|max:500',
             'is_active' => 'boolean',
         ]);
 

@@ -4,13 +4,17 @@ namespace Tests\Feature;
 
 use App\Models\Booking;
 use App\Models\Car;
-use App\Models\Guest;
+use App\Models\Coupon;
+use App\Models\CouponType;
+use App\Models\Tax;
+use App\Models\TaxCategory;
 use App\Models\VehicleAvailability;
 use App\Models\VehicleClass;
 use App\Models\VehicleLocation;
 use App\Services\BookingCreationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\TestCase;
 
 class BookingCreationTest extends TestCase
@@ -76,6 +80,23 @@ class BookingCreationTest extends TestCase
             'daily_rate' => 100,
         ]);
 
+        $category = TaxCategory::factory()->create(['name' => 'Tax']);
+        $tax = Tax::factory()->create([
+            'category_id' => $category->id,
+            'calculation' => 'Per Rental',
+            'value_in' => 'Amount',
+            'rate' => 15,
+            'add_or_minus' => true,
+        ]);
+        $tax->vehicleClasses()->attach($class->class_no);
+
+        $couponType = CouponType::factory()->create(['name' => 'Amount']);
+        $coupon = Coupon::factory()->create([
+            'coupon_type_id' => $couponType->id,
+            'min_rate' => 20,
+        ]);
+        $coupon->forceFill(['code' => 'SAVE10'])->save();
+
         $booking = $this->service->create([
             'car_id' => $car->id,
             'first_name' => 'Jane',
@@ -86,18 +107,13 @@ class BookingCreationTest extends TestCase
             'pickup_time' => '09:00',
             'return_time' => '17:00',
             'coupon_code' => 'SAVE10',
-            'discount' => 20,
-            'tax_breakdown' => [
-                ['tax_desc' => 'Sales Tax', 'amount' => 15, 'add_or_minus' => true],
-            ],
-            'total_tax' => 15,
-            'total_surcharge' => 0,
         ]);
 
         $this->assertInstanceOf(Booking::class, $booking);
-        $this->assertTrue($booking->total_amount > 0);
-        $this->assertDatabaseHas('coupon_usages', ['booking_id' => $booking->id]);
-        $this->assertDatabaseHas('booking_taxes', ['booking_id' => $booking->id]);
+        // 3 billable days x $100 = 300 + $15 tax - $20 coupon discount
+        $this->assertEquals(295.0, (float) $booking->total_amount);
+        $this->assertDatabaseHas('coupon_usages', ['booking_id' => $booking->id, 'discount_amount' => 20.0]);
+        $this->assertDatabaseHas('booking_taxes', ['booking_id' => $booking->id, 'amount' => 15.0]);
     }
 
     public function test_creates_booking_with_pickup_location(): void
@@ -158,7 +174,7 @@ class BookingCreationTest extends TestCase
             'return_time' => '12:00',
         ]);
 
-        $this->expectException(\Symfony\Component\HttpKernel\Exception\HttpException::class);
+        $this->expectException(HttpException::class);
         $this->expectExceptionMessage('overlap');
 
         $this->service->create([

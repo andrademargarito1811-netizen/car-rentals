@@ -2,7 +2,18 @@ import { useEffect } from 'react';
 import GuestLayout from '@/Layouts/GuestLayout';
 import { Head, Link } from '@inertiajs/react';
 
-export default function TermsOfService() {
+interface LegalDocument {
+    id: number;
+    slug: string;
+    title: string;
+    subtitle: string | null;
+    content: string;
+    type: 'website' | 'invoice';
+    version: number;
+    updated_at: string | null;
+}
+
+export default function TermsOfService({ document: legalDocument }: { document?: LegalDocument | null }) {
     useEffect(() => {
         const observer = new IntersectionObserver(
             (entries) => {
@@ -19,9 +30,13 @@ export default function TermsOfService() {
         return () => observer.disconnect();
     }, []);
 
+    const title = legalDocument?.title || 'Terms of Service';
+    const subtitle = legalDocument?.subtitle || 'Please read these terms carefully before using our services.';
+    const lastUpdated = legalDocument?.updated_at;
+
     return (
         <GuestLayout>
-            <Head title="Terms of Service" />
+            <Head title={title} />
 
             <section className="relative min-h-[40vh] flex items-center justify-center overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
                 <div className="absolute inset-0">
@@ -33,100 +48,22 @@ export default function TermsOfService() {
                         <svg className="w-4 h-4 text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                         </svg>
-                        <span className="text-sm font-medium text-slate-300">Last Updated: July 29, 2026</span>
+                        <span className="text-sm font-medium text-slate-300">Last Updated: {lastUpdated ? new Date(lastUpdated).toLocaleDateString() : 'N/A'}</span>
                     </div>
                     <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white tracking-tight">
-                        Terms of{' '}
-                        <span className="bg-gradient-to-r from-brand-400 via-amber-400 to-brand-400 bg-clip-text text-transparent">
-                            Service
-                        </span>
+                        {title}
                     </h1>
                     <p className="text-lg text-slate-400 max-w-2xl mx-auto mt-4">
-                        Please read these terms carefully before using our services.
+                        {subtitle}
                     </p>
                 </div>
             </section>
 
             <section className="py-16 sm:py-20 bg-white">
                 <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div data-animate className="opacity-0 translate-y-12 transition-all duration-700 space-y-8 text-slate-600 leading-relaxed">
-                        <p>
-                            By accessing or using the West Car Rentals website and services, you agree to be bound by these Terms of Service. If you do not agree with any part of these terms, you should not use our services.
-                        </p>
-
-                        <div>
-                            <h2 className="text-2xl font-bold text-slate-900 mb-4">1. Rental Eligibility</h2>
-                            <ul className="list-disc pl-6 space-y-2">
-                                <li>You must be at least 21 years of age to rent a vehicle (age requirements may vary by location)</li>
-                                <li>A valid driver's license held for a minimum of one year is required</li>
-                                <li>A valid credit card in the renter's name must be provided at pick-up</li>
-                                <li>International renters must provide a valid passport and international driver's permit if required</li>
-                            </ul>
-                        </div>
-
-                        <div>
-                            <h2 className="text-2xl font-bold text-slate-900 mb-4">2. Reservations and Payments</h2>
-                            <ul className="list-disc pl-6 space-y-2">
-                                <li>All reservations are subject to vehicle availability</li>
-                                <li>Rates are quoted in USD and include applicable taxes unless stated otherwise</li>
-                                <li>A valid credit card is required to guarantee all reservations</li>
-                                <li>Cancellation policies vary by rate type and will be disclosed at the time of booking</li>
-                                <li>No-shows may be charged the full rental amount</li>
-                            </ul>
-                        </div>
-
-                        <div>
-                            <h2 className="text-2xl font-bold text-slate-900 mb-4">3. Vehicle Use</h2>
-                            <ul className="list-disc pl-6 space-y-2">
-                                <li>Vehicles must not be used for illegal activities</li>
-                                <li>Unauthorized drivers are strictly prohibited</li>
-                                <li>Vehicles must not be driven off paved roads unless specifically permitted</li>
-                                <li>Smoking is prohibited in all rental vehicles (a cleaning fee will apply)</li>
-                                <li>Pets are allowed only with prior approval and may incur additional fees</li>
-                            </ul>
-                        </div>
-
-                        <div>
-                            <h2 className="text-2xl font-bold text-slate-900 mb-4">4. Insurance and Liability</h2>
-                            <p className="mb-4">Renters are responsible for the vehicle during the rental period. Various insurance options are available:</p>
-                            <ul className="list-disc pl-6 space-y-2">
-                                <li>Collision Damage Waiver (CDW) reduces financial liability for damage</li>
-                                <li>Liability Insurance is included as required by law</li>
-                                <li>Personal Accident Insurance is available upon request</li>
-                                <li>Renter's personal insurance may provide coverage; please check with your provider</li>
-                            </ul>
-                        </div>
-
-                        <div>
-                            <h2 className="text-2xl font-bold text-slate-900 mb-4">5. Fuel Policy</h2>
-                            <p>
-                                Vehicles are provided with a full tank of fuel and must be returned with a full tank. If the vehicle is returned with less fuel, a refueling service charge will apply. Pre-purchase fuel options may be available at discounted rates.
-                            </p>
-                        </div>
-
-                        <div>
-                            <h2 className="text-2xl font-bold text-slate-900 mb-4">6. Late Returns</h2>
-                            <p>
-                                A grace period of 29 minutes is provided. Returns beyond the grace period may incur additional hourly charges up to a full day's rental rate. Extensions must be authorized in advance.
-                            </p>
-                        </div>
-
-                        <div>
-                            <h2 className="text-2xl font-bold text-slate-900 mb-4">7. Modifications to Terms</h2>
-                            <p>
-                                We reserve the right to modify these terms at any time. Changes will be effective immediately upon posting to our website. Continued use of our services after any changes constitutes acceptance of the new terms.
-                            </p>
-                        </div>
-
-                        <div>
-                            <h2 className="text-2xl font-bold text-slate-900 mb-4">8. Contact Information</h2>
-                            <p>
-                                For questions about these Terms of Service, please contact us at{' '}
-                                <a href="mailto:support@westcarsales.com" className="text-brand-600 hover:text-brand-700 underline">support@westcarsales.com</a>{' '}
-                                or call +1 (800) 555-WEST.
-                            </p>
-                        </div>
-                    </div>
+                    <div data-animate className="opacity-0 translate-y-12 transition-all duration-700 space-y-8 text-slate-600 leading-relaxed [&_h2]:text-2xl [&_h2]:font-bold [&_h2]:text-slate-900 [&_h2]:mb-4 [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:space-y-2 [&_a]:text-brand-600 [&_a]:hover:text-brand-700 [&_a]:underline"
+                        dangerouslySetInnerHTML={{ __html: legalDocument?.content || '<p>This document is not available yet.</p>' }}
+                    />
                 </div>
             </section>
 

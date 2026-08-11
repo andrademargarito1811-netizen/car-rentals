@@ -12,6 +12,10 @@ return new class extends Migration
 
     public function down(): void
     {
-        DB::statement('ALTER TABLE audit_logs ALTER COLUMN model_id BIGINT NOT NULL');
+        if (DB::getDriverName() === 'sqlsrv') {
+            DB::statement('ALTER TABLE audit_logs ALTER COLUMN model_id BIGINT NOT NULL');
+        } else {
+            DB::statement('ALTER TABLE audit_logs MODIFY model_id BIGINT NOT NULL');
+        }
     }
 };

@@ -23,25 +23,35 @@ class ChatController extends Controller
 
     public function index()
     {
-        $userId = request()->user()?->id;
+        $user = request()->user();
+        if (! $user || ! $user->isAdmin()) {
+            abort(403);
+        }
+
+        $userId = $user->id;
 
         $conversations = Conversation::with([
             'user:id,name,email',
             'admin:id,name',
-            'latestMessage',
+            'latestMessage' => fn ($q) => $q->where('is_internal', false),
+            'messages:id,conversation_id,mentioned_admin_ids',
         ])
-            ->withCount(['messages as unread_count' => fn($q) =>
-                $q->whereNull('read_at')->where('sender_type', '!=', 'admin')
+            ->withCount(['messages as unread_count' => fn ($q) => $q->whereNull('read_at')->where('sender_type', '!=', 'admin'),
             ])
-            ->withCount(['messages as notes_count' => fn($q) =>
-                $q->where('is_internal', true)
-            ])
-            ->withCount(['messages as has_mention' => fn($q) =>
-                $userId ? $q->whereRaw('CHARINDEX(CONCAT(\'"\', ?, \'"\'), COALESCE(mentioned_admin_ids, \'[]\')) > 0', [$userId]) : $q
+            ->withCount(['messages as notes_count' => fn ($q) => $q->where('is_internal', true),
             ])
             ->where('status', 'active')
             ->orderBy('updated_at', 'desc')
             ->paginate(20);
+
+        if ($userId) {
+            $conversations->getCollection()->each(function ($conversation) use ($userId) {
+                $conversation->has_mention = $conversation->messages
+                    ->filter(fn ($m) => ! empty($m->mentioned_admin_ids) && in_array($userId, $m->mentioned_admin_ids))
+                    ->count();
+                $conversation->unsetRelation('messages');
+            });
+        }
 
         return Inertia::render('Admin/Chats/Index', [
             'conversations' => $conversations,
@@ -63,29 +73,31 @@ class ChatController extends Controller
 
     public function search(Request $request)
     {
+        if (! $request->user() || ! $request->user()->isAdmin()) {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
         $q = $request->input('q', '');
 
         $query = Conversation::with([
             'user:id,name,email',
             'admin:id,name',
-            'latestMessage',
+            'latestMessage' => fn ($q) => $q->where('is_internal', false),
         ])
-            ->withCount(['messages as unread_count' => fn($q) =>
-                $q->whereNull('read_at')->where('sender_type', '!=', 'admin')
+            ->withCount(['messages as unread_count' => fn ($q) => $q->whereNull('read_at')->where('sender_type', '!=', 'admin'),
             ])
-            ->withCount(['messages as notes_count' => fn($q) =>
-                $q->where('is_internal', true)
+            ->withCount(['messages as notes_count' => fn ($q) => $q->where('is_internal', true),
             ])
             ->where('status', 'active');
 
         if (trim($q)) {
-            $search = '%' . trim($q) . '%';
+            $search = '%'.trim($q).'%';
             $query->where(function ($query) use ($search) {
-                $query->whereHas('user', fn($q) => $q->where('name', 'like', $search)->orWhere('email', 'like', $search))
+                $query->whereHas('user', fn ($q) => $q->where('name', 'like', $search)->orWhere('email', 'like', $search))
                     ->orWhere('guest_token', 'like', $search)
                     ->orWhere('guest_name', 'like', $search)
                     ->orWhere('guest_email', 'like', $search)
-                    ->orWhereHas('messages', fn($q) => $q->where('body', 'like', $search));
+                    ->orWhereHas('messages', fn ($q) => $q->where('body', 'like', $search));
             });
         }
 
@@ -122,7 +134,7 @@ class ChatController extends Controller
     public function assign(Conversation $conversation)
     {
         $user = request()->user();
-        if (!$user || !$user->isAdmin()) {
+        if (! $user || ! $user->isAdmin()) {
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
@@ -164,10 +176,10 @@ class ChatController extends Controller
 
         if ($request->input('conversation_id')) {
             $conversation = Conversation::findOrFail($validated['conversation_id']);
-            if ($user && !$user->isAdmin() && $conversation->user_id !== $user->id) {
+            if ($user && ! $user->isAdmin() && $conversation->user_id !== $user->id) {
                 return response()->json(['message' => 'Forbidden'], 403);
             }
-            if (!$user && $conversation->guest_token !== ($validated['guest_token'] ?? null)) {
+            if (! $user && $conversation->guest_token !== ($validated['guest_token'] ?? null)) {
                 return response()->json(['message' => 'Forbidden'], 403);
             }
         } else {
@@ -226,7 +238,7 @@ class ChatController extends Controller
 
     public function conversations(Request $request)
     {
-        if (!$request->user()) {
+        if (! $request->user()) {
             $this->autoReplyService->pruneStaleGuestConversations();
         }
 
@@ -246,7 +258,7 @@ class ChatController extends Controller
 
         $conversations = $query->get();
 
-        if (!$request->user() || !$request->user()->isAdmin()) {
+        if (! $request->user() || ! $request->user()->isAdmin()) {
             $conversations->load(['latestMessage' => function ($q) {
                 $q->where('is_internal', false);
             }]);
@@ -261,17 +273,17 @@ class ChatController extends Controller
     {
         $user = $request->user();
 
-        if ($user && !$user->isAdmin() && $conversation->user_id !== $user->id) {
+        if ($user && ! $user->isAdmin() && $conversation->user_id !== $user->id) {
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
-        if (!$user && $request->guest_token !== $conversation->guest_token) {
+        if (! $user && $request->guest_token !== $conversation->guest_token) {
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
         $messagesQuery = $conversation->messages()->with('sender:id,name');
 
-        if (!$user || !$user->isAdmin()) {
+        if (! $user || ! $user->isAdmin()) {
             $messagesQuery->where('is_internal', false);
         }
 
@@ -284,6 +296,7 @@ class ChatController extends Controller
         $admins->each(function ($admin) {
             $admin->is_online = $admin->last_active_at && $admin->last_active_at->gt(now()->subMinutes(5));
         });
+
         return response()->json(['data' => $admins]);
     }
 
@@ -293,6 +306,7 @@ class ChatController extends Controller
         if ($user) {
             $user->update(['last_active_at' => now()]);
         }
+
         return response()->json(['success' => true]);
     }
 
@@ -310,10 +324,10 @@ class ChatController extends Controller
         if ($request->input('conversation_id')) {
             $conversation = Conversation::findOrFail($validated['conversation_id']);
 
-            if ($user && !$user->isAdmin() && $conversation->user_id !== $user->id) {
+            if ($user && ! $user->isAdmin() && $conversation->user_id !== $user->id) {
                 return response()->json(['message' => 'Forbidden'], 403);
             }
-            if (!$user && $conversation->guest_token !== ($validated['guest_token'] ?? null)) {
+            if (! $user && $conversation->guest_token !== ($validated['guest_token'] ?? null)) {
                 return response()->json(['message' => 'Forbidden'], 403);
             }
         } else {
@@ -348,9 +362,9 @@ class ChatController extends Controller
         $mentionedIds = [];
         if ($user && $user->isAdmin()) {
             preg_match_all('/@([\w\s-]+)/', $validated['body'], $matches);
-            if (!empty($matches[1])) {
+            if (! empty($matches[1])) {
                 $names = array_unique(array_filter(array_map('trim', $matches[1])));
-                if (!empty($names)) {
+                if (! empty($names)) {
                     $mentionedIds = User::whereIn('name', $names)
                         ->where('role', 'admin')
                         ->where('id', '!=', $user->id)
@@ -359,7 +373,7 @@ class ChatController extends Controller
                 }
             }
         }
-        if (!empty($mentionedIds)) {
+        if (! empty($mentionedIds)) {
             $message->update(['mentioned_admin_ids' => $mentionedIds]);
             try {
                 broadcast(new AdminMentioned($message, $mentionedIds));
@@ -389,7 +403,7 @@ class ChatController extends Controller
             'conversation_id' => $conversation->id,
         ];
 
-        if (!$user || !$user->isAdmin()) {
+        if (! $user || ! $user->isAdmin()) {
             $contactReply = $this->autoReplyService->handleContactInfo($conversation, $validated['body']);
             if ($contactReply) {
                 $response['auto_reply'] = $contactReply;
@@ -416,7 +430,7 @@ class ChatController extends Controller
         $conversation = Conversation::findOrFail($validated['conversation_id']);
         $user = $request->user();
 
-        if (!$user && $conversation->guest_token !== ($validated['guest_token'] ?? null)) {
+        if (! $user && $conversation->guest_token !== ($validated['guest_token'] ?? null)) {
             return response()->json(['message' => 'Forbidden'], 403);
         }
 
@@ -427,7 +441,7 @@ class ChatController extends Controller
                     $q->whereNull('sender_id')->orWhere('sender_id', '!=', $user->id);
                 });
             })
-            ->when(!$user, function ($q) {
+            ->when(! $user, function ($q) {
                 $q->where('sender_type', '!=', 'guest');
             })
             ->update(['read_at' => now()]);
@@ -456,7 +470,7 @@ class ChatController extends Controller
         $conversation = Conversation::findOrFail($validated['conversation_id']);
         $user = $request->user();
 
-        if (!$user && $conversation->guest_token !== ($validated['guest_token'] ?? null)) {
+        if (! $user && $conversation->guest_token !== ($validated['guest_token'] ?? null)) {
             return response()->json(['message' => 'Forbidden'], 403);
         }
 

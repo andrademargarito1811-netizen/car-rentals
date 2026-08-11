@@ -12,7 +12,7 @@ class Guest extends Model
     protected $primaryKey = 'guest_id';
 
     protected $fillable = [
-        'title', 'first_name', 'last_name', 'driver_age',
+        'title', 'first_name', 'last_name', 'company_name', 'driver_age',
         'phone', 'email',
         'address', 'address2', 'country', 'state', 'city', 'postal_code',
         'flight_no',
@@ -21,5 +21,10 @@ class Guest extends Model
     public function bookings()
     {
         return $this->hasMany(Booking::class, 'guest_id', 'guest_id');
+    }
+
+    public function drivers()
+    {
+        return $this->hasMany(Driver::class, 'guest_id', 'guest_id');
     }
 }

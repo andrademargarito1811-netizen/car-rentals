@@ -114,17 +114,24 @@ return [
             'trust_server_certificate' => env('DB_TRUST_SERVER_CERTIFICATE', 'true'),
         ],
 
-        'prod_sqlsrv' => [
-            'driver' => 'sqlsrv',
-            'host' => env('PROD_DB_HOST'),
-            'port' => env('PROD_DB_PORT', '1433'),
-            'database' => env('PROD_DB_DATABASE'),
-            'username' => env('PROD_DB_USERNAME'),
-            'password' => env('PROD_DB_PASSWORD'),
-            'charset' => 'utf8',
+        'prod' => [
+            'driver' => 'mysql',
+            'url' => env('DB_URL'),
+            'host' => env('PROD_DB_HOST', 'localhost'),
+            'port' => env('PROD_DB_PORT', '3306'),
+            'database' => env('PROD_DB_DATABASE', 'car_rentals'),
+            'username' => env('PROD_DB_USERNAME', 'root'),
+            'password' => env('PROD_DB_PASSWORD', 'admin123'),
+            'unix_socket' => env('DB_SOCKET', ''),
+            'charset' => env('DB_CHARSET', 'utf8mb4'),
+            'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),
             'prefix' => '',
             'prefix_indexes' => true,
-            'trust_server_certificate' => true,
+            'strict' => true,
+            'engine' => null,
+            'options' => extension_loaded('pdo_mysql') ? array_filter([
+                Mysql::ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
+            ]) : [],
         ],
 
     ],

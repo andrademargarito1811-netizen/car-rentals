@@ -15,18 +15,15 @@ class WelcomeUser extends Mailable
 
     public User $user;
 
-    public string $password;
-
-    public function __construct(User $user, string $password)
+    public function __construct(User $user)
     {
         $this->user = $user;
-        $this->password = $password;
     }
 
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Welcome to ' . config('app.name'),
+            subject: 'Welcome to '.config('app.name'),
         );
     }
 
@@ -36,7 +33,6 @@ class WelcomeUser extends Mailable
             markdown: 'emails.welcome-user',
             with: [
                 'user' => $this->user,
-                'password' => $this->password,
             ],
         );
     }

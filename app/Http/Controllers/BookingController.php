@@ -6,16 +6,24 @@ use App\Events\BookingUpdated;
 use App\Http\Requests\ModifyBookingRequest;
 use App\Models\AuditLog;
 use App\Models\Booking;
+use App\Models\BookingTax;
 use App\Models\Car;
 use App\Models\VehicleLocation;
 use App\Services\BookingCreationService;
 use App\Services\BookingModificationService;
+use App\Services\BookingPricingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class BookingController extends Controller
 {
+    public function __construct(
+        private BookingPricingService $pricing,
+    ) {}
+
     public function index()
     {
         $bookings = Booking::where('user_id', auth()->id())
@@ -43,19 +51,47 @@ class BookingController extends Controller
             'notes' => 'nullable|string',
         ]);
 
-        $car = Car::findOrFail($validated['car_id']);
-        $days = now()->parse($validated['start_date'])->diffInDays(now()->parse($validated['end_date'])) + 1;
-        $totalAmount = $car->daily_rate * $days;
+        $car = Car::with('vehicleClass')->findOrFail($validated['car_id']);
+        $graceMinutes = $car->getGraceMinutes();
+
+        $newPickup = $validated['start_date'].' 00:00:00';
+        $newReturn = $validated['end_date'].' 23:59:59';
+        $overlapExists = Booking::overlappingBetween($car->id, $newPickup, $newReturn, $graceMinutes)->exists();
+        if ($overlapExists) {
+            return back()->withErrors([
+                'start_date' => 'This car already has a booking that overlaps with the requested dates.',
+            ])->onlyInput('start_date', 'end_date');
+        }
+
+        $price = $this->pricing->calculate(
+            $car,
+            $validated['start_date'],
+            null,
+            $validated['end_date'],
+            null,
+            null,
+            null,
+        );
 
         $booking = Booking::create([
             'user_id' => auth()->id(),
             'car_id' => $validated['car_id'],
             'start_date' => $validated['start_date'],
             'end_date' => $validated['end_date'],
-            'total_amount' => $totalAmount,
+            'total_amount' => $price['total'],
             'status' => 'pending',
             'notes' => $validated['notes'] ?? null,
         ]);
+
+        foreach ($price['taxes'] as $item) {
+            BookingTax::create([
+                'booking_id' => $booking->id,
+                'tax_id' => $item['id'] ?? null,
+                'tax_desc' => $item['tax_desc'],
+                'amount' => $item['amount'],
+                'add_or_minus' => $item['add_or_minus'],
+            ]);
+        }
 
         AuditLog::create([
             'user_id' => auth()->id(),
@@ -72,12 +108,12 @@ class BookingController extends Controller
 
     public function show(Booking $booking)
     {
-        if ($booking->user_id !== auth()->id() && !auth()->user()?->isAdmin()) {
+        if ($booking->user_id !== auth()->id() && ! auth()->user()?->isAdmin()) {
             abort(403);
         }
 
         return Inertia::render('Bookings/Show', [
-            'booking' => $booking,
+            'booking' => $booking->load(['pickupHandover', 'returnHandover']),
         ]);
     }
 
@@ -105,7 +141,7 @@ class BookingController extends Controller
     public function guestShow(string $reference)
     {
         $booking = Booking::where('reference_code', $reference)
-            ->with(['car', 'guest', 'payment', 'couponUsage', 'bookingTaxes', 'pickupLocation', 'returnLocation'])
+            ->with(['car', 'guest', 'payment', 'couponUsage', 'bookingTaxes', 'pickupLocation', 'returnLocation', 'pickupHandover', 'returnHandover', 'extraCharges'])
             ->firstOrFail();
 
         return Inertia::render('Bookings/GuestShow', [
@@ -126,12 +162,12 @@ class BookingController extends Controller
         ]);
 
         $booking = Booking::where(function ($q) use ($validated) {
-                if (is_numeric($validated['booking_id'])) {
-                    $q->where('bookings.id', $validated['booking_id']);
-                } else {
-                    $q->where('bookings.reference_code', $validated['booking_id']);
-                }
-            })
+            if (is_numeric($validated['booking_id'])) {
+                $q->where('bookings.id', $validated['booking_id']);
+            } else {
+                $q->where('bookings.reference_code', $validated['booking_id']);
+            }
+        })
             ->where(function ($q) use ($validated) {
                 $q->whereHas('user', function ($query) use ($validated) {
                     $query->where('email', $validated['email']);
@@ -139,10 +175,10 @@ class BookingController extends Controller
                     $query->where('email', $validated['email']);
                 });
             })
-            ->with(['car', 'guest', 'payment', 'couponUsage', 'bookingTaxes', 'pickupLocation', 'returnLocation'])
+            ->with(['car', 'guest', 'payment', 'couponUsage', 'bookingTaxes', 'pickupLocation', 'returnLocation', 'pickupHandover', 'returnHandover', 'extraCharges'])
             ->first();
 
-        if (!$booking) {
+        if (! $booking) {
             return back()->withErrors([
                 'email' => 'No booking found with the provided email and reservation number.',
             ])->onlyInput('email');
@@ -155,8 +191,6 @@ class BookingController extends Controller
 
     public function storeGuest(Request $request, BookingCreationService $creationService)
     {
-        Log::debug('storeGuest called', ['all' => $request->all(), 'headers' => $request->headers->all()]);
-
         try {
             $validated = $request->validate([
                 'title' => 'nullable|string|max:10',
@@ -172,6 +206,7 @@ class BookingController extends Controller
                 'state' => 'nullable|string|max:100',
                 'city' => 'nullable|string|max:100',
                 'postal_code' => 'nullable|string|max:20',
+                'company_name' => 'nullable|string|max:150',
                 'flight_no' => 'nullable|string|max:50',
                 'agree_terms' => 'required|accepted',
                 'car_id' => 'required|exists:tblcars,id',
@@ -181,30 +216,33 @@ class BookingController extends Controller
                 'return_date' => 'required|date|after_or_equal:pickup_date',
                 'return_time' => 'nullable|string',
                 'return_location' => 'nullable|string|max:255',
+
+                'driver_info_required' => 'sometimes|boolean',
+                'driver_is_renter' => 'sometimes|boolean',
+                'driver_first_name' => 'required_if:driver_info_required,1|string|max:100',
+                'driver_last_name' => 'required_if:driver_info_required,1|string|max:100',
+                'driver_birth_date' => 'required_if:driver_info_required,1|date|before_or_equal:-18 years',
+                'license_number' => 'required_if:driver_info_required,1|string|max:100',
+                'license_category' => 'required_if:driver_info_required,1|string|max:20',
+                'license_expiry' => 'required_if:driver_info_required,1|date|after:today',
+
                 'coupon_code' => 'nullable|string|max:16',
-                'discount' => 'nullable|numeric|min:0',
-                'tax_breakdown' => 'nullable|array',
-                'tax_breakdown.*.id' => 'nullable|integer',
-                'tax_breakdown.*.tax_desc' => 'required|string',
-                'tax_breakdown.*.amount' => 'required|numeric',
-                'tax_breakdown.*.add_or_minus' => 'required|boolean',
-                'total_tax' => 'nullable|numeric|min:0',
-                'total_surcharge' => 'nullable|numeric|min:0',
             ]);
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            Log::warning('storeGuest validation failed', ['errors' => $e->errors(), 'input' => $request->all()]);
+        } catch (ValidationException $e) {
+            Log::warning('storeGuest validation failed', ['errors' => $e->errors()]);
             throw $e;
         }
 
         try {
             $booking = $creationService->create($validated, $request);
-        } catch (\Symfony\Component\HttpKernel\Exception\HttpException $e) {
+        } catch (HttpException $e) {
             if ($request->wantsJson() || $request->expectsJson()) {
                 return response()->json([
                     'message' => $e->getMessage(),
                     'errors' => ['pickup_date' => [$e->getMessage()]],
                 ], 422);
             }
+
             return back()->withErrors([
                 'pickup_date' => $e->getMessage(),
             ])->onlyInput('pickup_date', 'return_date', 'pickup_time', 'return_time');
@@ -220,25 +258,26 @@ class BookingController extends Controller
 
         if (auth()->user()?->isAdmin()) {
             return redirect()->route('admin.cars.schedule')
-                ->with('success', 'Booking created for ' . ($booking->guest->first_name ?? '') . ' ' . ($booking->guest->last_name ?? '') . '.');
+                ->with('success', 'Booking created for '.($booking->guest->first_name ?? '').' '.($booking->guest->last_name ?? '').'.');
         }
 
         return redirect()->route('bookings.lookup')
-            ->with('success', 'Reservation created successfully! Your reservation ID is ' . $booking->reference_code);
+            ->with('success', 'Reservation created successfully! Your reservation ID is '.$booking->reference_code);
     }
 
     public function edit(Booking $booking)
     {
         $user = auth()->user();
 
-        if ($booking->user_id && $booking->user_id !== $user?->id && !$user?->isAdmin()) {
+        if ($booking->user_id && $booking->user_id !== $user?->id && ! $user?->isAdmin()) {
             abort(403);
         }
 
-        $allowedStatuses = (!$user && !$booking->user_id) ? ['pending'] : ['pending', 'confirmed'];
-        if (!in_array($booking->status, $allowedStatuses)) {
+        $allowedStatuses = (! $user && ! $booking->user_id) ? ['pending'] : ['pending', 'confirmed'];
+        if (! in_array($booking->status, $allowedStatuses)) {
             $route = $booking->user_id ? 'bookings.show' : 'bookings.guest.show';
             $param = $booking->user_id ? $booking->id : $booking->reference_code;
+
             return redirect()->route($route, $param)
                 ->with('error', 'Booking can only be modified when status is pending or confirmed.');
         }
@@ -253,19 +292,21 @@ class BookingController extends Controller
             'booking' => $booking,
             'cars' => $cars,
             'locations' => $locations,
-            'isGuest' => !$booking->user_id && !$user,
+            'isGuest' => ! $booking->user_id && ! $user,
         ]);
     }
 
     public function editByReference(string $reference)
     {
         $booking = Booking::where('reference_code', $reference)->firstOrFail();
+
         return $this->edit($booking);
     }
 
     public function modifyByReference(ModifyBookingRequest $request, string $reference, BookingModificationService $modificationService)
     {
         $booking = Booking::where('reference_code', $reference)->firstOrFail();
+
         return $this->modify($request, $booking, $modificationService);
     }
 
@@ -277,7 +318,7 @@ class BookingController extends Controller
             try {
                 event(new BookingUpdated($booking));
             } catch (\Throwable $e) {
-                Log::warning('Broadcast failed for modified booking: ' . $e->getMessage());
+                Log::warning('Broadcast failed for modified booking: '.$e->getMessage());
             }
 
             if ($request->wantsJson() || $request->expectsJson()) {
@@ -290,6 +331,7 @@ class BookingController extends Controller
 
             $route = $booking->user_id ? 'bookings.show' : 'bookings.guest.show';
             $param = $booking->user_id ? $booking->id : $booking->reference_code;
+
             return redirect()->route($route, $param)
                 ->with('success', 'Booking modified successfully.');
         } catch (\Exception $e) {

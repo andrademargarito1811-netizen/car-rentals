@@ -2,20 +2,24 @@
 
 namespace App\Services;
 
+use App\Models\AuditLog;
 use App\Models\Booking;
 use App\Models\BookingTax;
 use App\Models\Car;
-use App\Models\Coupon;
 use App\Models\CouponUsage;
 use App\Models\Guest;
-use App\Models\VehicleLocation;
-use App\Models\AuditLog;
 use App\Models\Payment;
+use App\Models\VehicleLocation;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class BookingModificationService
 {
+    public function __construct(
+        private BookingPricingService $pricing,
+    ) {}
+
     public function modify(Booking $booking, array $data): Booking
     {
         $this->assertCanModify($booking);
@@ -62,18 +66,26 @@ class BookingModificationService
                 $this->checkAvailability($carId, $pickupDate, $returnDate, $pickupTime, $returnTime, $booking->id);
             }
 
-            $car = Car::findOrFail($carId);
-            $start = now()->parse($pickupDate . ' ' . ($pickupTime ?? '10:00'));
-            $end = now()->parse($returnDate . ' ' . ($returnTime ?? '10:00'));
-            $days = max(1, (int) ceil($start->diffInSeconds($end, true) / 86400));
-            $subtotal = $car->daily_rate * $days;
-            $totalTax = $data['total_tax'] ?? 0;
-            $totalSurcharge = $data['total_surcharge'] ?? 0;
-            $discount = $data['discount'] ?? 0;
-            $newTotal = max(0, $subtotal + $totalTax + $totalSurcharge - $discount);
+            $car = Car::with('vehicleClass')->findOrFail($carId);
+
+            $couponCode = array_key_exists('coupon_code', $data)
+                ? ($data['coupon_code'] ?? null)
+                : ($booking->couponUsage?->code ?? null);
+
+            $price = $this->pricing->calculate(
+                $car,
+                $pickupDate,
+                $pickupTime,
+                $returnDate,
+                $returnTime,
+                $pickupLocation,
+                $couponCode,
+            );
+
+            $newTotal = $price['total'];
 
             if ($booking->total_amount != $newTotal) {
-                $this->handlePaymentDifference($booking, $booking->total_amount, $newTotal);
+                $this->handlePaymentDifference($booking, (float) $booking->total_amount, (float) $newTotal);
             }
 
             $booking->update([
@@ -98,15 +110,11 @@ class BookingModificationService
                 $changes['guest'] = true;
             }
 
-            if (array_key_exists('coupon_code', $data)) {
-                $this->updateCouponUsage($booking, $data);
-                $changes['coupon'] = true;
-            }
+            $this->updateCouponUsage($booking, $price);
+            $changes['coupon'] = true;
 
-            if (array_key_exists('tax_breakdown', $data)) {
-                $this->updateTaxBreakdown($booking, $data['tax_breakdown']);
-                $changes['taxes'] = true;
-            }
+            $this->updateTaxBreakdown($booking, $price['taxes']);
+            $changes['taxes'] = true;
 
             AuditLog::create([
                 'user_id' => request()->user()?->id,
@@ -135,7 +143,7 @@ class BookingModificationService
 
     private function assertCanModify(Booking $booking): void
     {
-        if (!in_array($booking->status, ['pending', 'confirmed'])) {
+        if (! in_array($booking->status, ['pending', 'confirmed'])) {
             abort(422, 'Booking can only be modified when status is pending or confirmed.');
         }
     }
@@ -145,8 +153,8 @@ class BookingModificationService
         $car = Car::with('vehicleClass')->find($carId);
         $graceMinutes = $car?->getGraceMinutes() ?? config('reservation.default_grace_minutes', 30);
 
-        $newPickup = $startDate . ' ' . ($pickupTime ?? '00:00:00');
-        $newReturn = $endDate . ' ' . ($returnTime ?? '23:59:59');
+        $newPickup = $startDate.' '.($pickupTime ?? '00:00:00');
+        $newReturn = $endDate.' '.($returnTime ?? '23:59:59');
 
         $overlapExists = Booking::overlappingBetween($carId, $newPickup, $newReturn, $graceMinutes, $excludeBookingId)->exists();
 
@@ -160,37 +168,36 @@ class BookingModificationService
         $guestData = array_intersect_key($data, array_flip([
             'title', 'first_name', 'last_name', 'driver_age',
             'phone', 'email', 'address', 'address2',
-            'country', 'state', 'city', 'postal_code', 'flight_no',
+            'country', 'state', 'city', 'postal_code', 'company_name', 'flight_no',
         ]));
 
         if ($booking->guest_id && $booking->guest) {
             $booking->guest->update($guestData);
-        } elseif (!empty($guestData['email'])) {
+        } elseif (! empty($guestData['email'])) {
             $guest = Guest::create($guestData);
             $booking->update(['guest_id' => $guest->guest_id]);
         }
     }
 
-    private function updateCouponUsage(Booking $booking, array $data): void
+    private function updateCouponUsage(Booking $booking, array $price): void
     {
         $booking->couponUsage()?->delete();
 
-        if (!empty($data['coupon_code']) && ($data['discount'] ?? 0) > 0) {
-            $coupon = Coupon::where('code', $data['coupon_code'])->first();
+        if ($price['coupon'] && $price['coupon_discount'] > 0) {
             CouponUsage::create([
                 'booking_id' => $booking->id,
-                'coupon_id' => $coupon?->id,
-                'code' => $data['coupon_code'],
-                'discount_amount' => $data['discount'],
+                'coupon_id' => $price['coupon']->id,
+                'code' => $price['coupon']->code,
+                'discount_amount' => $price['coupon_discount'],
             ]);
         }
     }
 
-    private function updateTaxBreakdown(Booking $booking, array $taxBreakdown): void
+    private function updateTaxBreakdown(Booking $booking, array $taxes): void
     {
         $booking->bookingTaxes()->delete();
 
-        foreach ($taxBreakdown as $item) {
+        foreach ($taxes as $item) {
             BookingTax::create([
                 'booking_id' => $booking->id,
                 'tax_id' => $item['id'] ?? null,
@@ -203,13 +210,52 @@ class BookingModificationService
 
     private function handlePaymentDifference(Booking $booking, float $oldAmount, float $newAmount): void
     {
-        $payment = $booking->payment;
-        if (!$payment) return;
+        if (abs($oldAmount - $newAmount) < 0.005) {
+            return;
+        }
 
         if ($newAmount > $oldAmount) {
             Log::info("Booking {$booking->id}: amount increased from {$oldAmount} to {$newAmount} — additional charge needed");
-        } elseif ($newAmount < $oldAmount) {
-            Log::info("Booking {$booking->id}: amount decreased from {$oldAmount} to {$newAmount} — refund may be needed");
+
+            return;
         }
+
+        $paid = round((float) $booking->completedPayments()->sum('amount'), 2);
+        $overpaid = round($paid - $newAmount, 2);
+
+        if ($overpaid <= 0) {
+            Log::info("Booking {$booking->id}: amount decreased from {$oldAmount} to {$newAmount} — no refund needed");
+
+            return;
+        }
+
+        $payment = Payment::create([
+            'booking_id' => $booking->id,
+            'type' => 'refund',
+            'amount' => -$overpaid,
+            'payment_method' => 'Adjustment',
+            'payment_status' => 'completed',
+            'transaction_id' => 'ADJ-'.strtoupper(Str::random(10)),
+            'metadata' => [
+                'reason' => 'booking_total_decreased',
+                'old_amount' => $oldAmount,
+                'new_amount' => $newAmount,
+                'source' => 'auto',
+            ],
+        ]);
+
+        AuditLog::create([
+            'user_id' => request()->user()?->id,
+            'action' => 'refund_recorded',
+            'model_type' => Payment::class,
+            'model_id' => $payment->id,
+            'description' => "Booking {$booking->reference_code} total decreased from \${$oldAmount} to \${$newAmount} — refund of \${$overpaid} auto-recorded",
+            'old_values' => ['total_amount' => $oldAmount],
+            'new_values' => ['total_amount' => $newAmount, 'refund_amount' => $overpaid],
+            'ip_address' => request()->ip(),
+            'user_agent' => request()->userAgent(),
+        ]);
+
+        Log::info("Booking {$booking->id}: amount decreased from {$oldAmount} to {$newAmount} — refund of {$overpaid} recorded");
     }
 }

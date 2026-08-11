@@ -7,6 +7,7 @@ import FleetPageTab from './FleetPageTab';
 import ReservationPageTab from './ReservationPageTab';
 import LocationsPageTab from './LocationsPageTab';
 import AboutUsPageTab from './AboutUsPageTab';
+import BrandSettingsTab from './BrandSettingsTab';
 
 const PAGE_TABS = [
     { id: 'home', label: 'Home', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
@@ -14,6 +15,7 @@ const PAGE_TABS = [
     { id: 'reservation', label: 'Reservation', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
     { id: 'locations', label: 'Locations', icon: 'M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0zM15 11a3 3 0 11-6 0 3 3 0 016 0z' },
     { id: 'about-us', label: 'About Us', icon: 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
+    { id: 'brand', label: 'Brand Settings', icon: 'M3 3h18v18H3zM3 9h18M9 21V9' },
 ] as const;
 
 interface HeroImage {
@@ -64,27 +66,20 @@ interface ReservationSettings {
     subtitle: string | null;
     stat_pills: { icon: string; text: string }[] | null;
     is_active: boolean;
-    booking_terms: string | null;
     hero_images: { id: number; image_path: string; alt_text: string | null; caption: string | null; sort_order: number }[];
 }
 
 interface LocationsPageSettings {
     id: number;
     hero_badge: string;
+    hero_badge_active: boolean;
     hero_title: string;
     hero_highlight: string;
     hero_description: string | null;
     hero_image_path: string | null;
-    hero_button_text: string;
-    hero_phone_label: string;
-    hero_phone_number: string;
     hero_active: boolean;
     cta_title: string;
     cta_description: string | null;
-    cta_button_text: string;
-    cta_button_url: string;
-    cta_phone_label: string;
-    cta_phone_number: string;
     cta_active: boolean;
     is_active: boolean;
 }
@@ -98,9 +93,43 @@ interface AboutUsSettings {
     hero_image_path: string | null;
     story_heading: string;
     story_content: string | null;
+    story_image_path: string | null;
     mission_text: string | null;
     vision_text: string | null;
     stats: { value: string; label: string }[] | null;
+    values: { icon: string; title: string; description: string; color: string }[] | null;
+    team_members: { name: string; role: string | null; image_path: string | null }[] | null;
+    is_active: boolean;
+}
+
+interface FooterSettings {
+    id: number;
+    brand_name: string;
+    brand_tagline: string | null;
+    brand_description: string | null;
+    logo_path: string | null;
+    newsletter_heading: string;
+    newsletter_description: string | null;
+    newsletter_placeholder: string;
+    newsletter_active: boolean;
+    contact_email: string;
+    contact_phone: string;
+    contact_hours: string;
+    contact_address: string;
+    copyright_text: string;
+    quick_links: { label: string; url: string }[];
+    legal_links: { label: string; url: string }[];
+    social_links: { platform: string; label: string; url: string }[];
+    is_active: boolean;
+}
+
+interface WhyBookItem {
+    id: number;
+    title: string;
+    description: string | null;
+    icon_svg: string | null;
+    icon_path: string | null;
+    sort_order: number;
     is_active: boolean;
 }
 
@@ -143,6 +172,9 @@ export default function HeroSettingsIndex({
     reservationSettings,
     locationsPageSettings,
     aboutUsSettings,
+    footerSettings,
+    whyBookItems = [],
+    page = 'home',
 }: {
     homeSettings: HomeSettings;
     whyChooseUsItems?: WhyChooseUsItem[];
@@ -152,8 +184,11 @@ export default function HeroSettingsIndex({
     reservationSettings: ReservationSettings;
     locationsPageSettings: LocationsPageSettings;
     aboutUsSettings: AboutUsSettings;
+    footerSettings: FooterSettings;
+    whyBookItems?: WhyBookItem[];
+    page?: string;
 }) {
-    const [activePage, setActivePage] = useState('home');
+    const [activePage, setActivePage] = useState(page);
     const [showImageForm, setShowImageForm] = useState(false);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const [lightboxImg, setLightboxImg] = useState<{ src: string; alt: string } | null>(null);
@@ -282,7 +317,7 @@ export default function HeroSettingsIndex({
                                     Page Customization
                                 </h1>
                                 <p className="text-white/60 max-w-xl text-sm">
-                                    Manage content for every page on your site — Home, Fleet, Reservation, Locations, and About Us.
+                                    Manage content for every page on your site — Home, Fleet, Reservation, Locations, About Us, and Brand Settings.
                                 </p>
                             </div>
                         </div>
@@ -336,11 +371,11 @@ export default function HeroSettingsIndex({
                                 )}
 
                                 {activePage === 'fleet' && (
-                                    <FleetPageTab settings={fleetSettings} />
+                                    <FleetPageTab settings={fleetSettings} homeSettings={homeSettings} />
                                 )}
 
                                 {activePage === 'reservation' && (
-                                    <ReservationPageTab settings={reservationSettings} />
+                                    <ReservationPageTab settings={reservationSettings} whyBookItems={whyBookItems} />
                                 )}
 
                                 {activePage === 'locations' && (
@@ -349,6 +384,10 @@ export default function HeroSettingsIndex({
 
                                 {activePage === 'about-us' && (
                                     <AboutUsPageTab settings={aboutUsSettings} />
+                                )}
+
+                                {activePage === 'brand' && (
+                                    <BrandSettingsTab settings={footerSettings} />
                                 )}
                             </div>
 

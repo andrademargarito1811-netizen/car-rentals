@@ -33,7 +33,8 @@ interface CouponsIndexProps {
     couponTypes: CouponType[];
 }
 
-function palauMs(date: string): number {
+function palauMs(date: string | null): number {
+    if (!date) return 0;
     const dt = new Date(date);
     if (isNaN(dt.getTime())) return 0;
     return dt.getTime() + 9 * 60 * 60 * 1000;

@@ -7,11 +7,16 @@
         <meta name="csrf-token" content="{{ csrf_token() }}">
         <title inertia>{{ config('app.name', 'Laravel') }}</title>
 
-        <link rel="icon" type="image/png" href="{{ asset('img/company_logo/company-logos-01.png') }}">
+        @php
+            $footerLogoUrl = $footerSettings?->logo_url ?? '/img/company_logo/company-logos-01.png';
+            $footerLogoVersion = $footerSettings?->updated_at?->timestamp ?? '';
+        @endphp
+        <link rel="icon" type="image/png" href="{{ asset(ltrim($footerLogoUrl, '/')) }}{{ $footerLogoVersion ? '?v=' . $footerLogoVersion : '' }}">
 
         <!-- Fonts -->
         <link rel="preconnect" href="https://fonts.bunny.net">
         <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
+        <link href="https://fonts.bunny.net/css?family=playfair-display:500,600,700,800&display=swap" rel="stylesheet" />
 
         <!-- Scripts -->
         @routes

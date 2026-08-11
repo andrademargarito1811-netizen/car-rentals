@@ -5,39 +5,18 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\ReservationHeroImage;
 use App\Models\ReservationSetting;
-use App\Models\WhyBookItem;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
-use Inertia\Inertia;
 
 class ReservationSettingController extends Controller
 {
-    public function index()
-    {
-        $settings = ReservationSetting::with('heroImages')->first();
-
-        if (!$settings) {
-            $settings = ReservationSetting::create([
-                'badge_text' => 'Palau Exclusive',
-                'headline' => 'Reserve Your',
-                'headline_highlight' => 'Ride',
-                'subtitle' => 'Complete the form below to secure your perfect vehicle. Palau-exclusive rentals for a truly unique experience.',
-            ]);
-        }
-
-        $whyBookItems = WhyBookItem::orderBy('sort_order')->orderBy('created_at', 'desc')->paginate(20);
-
-        return Inertia::render('Admin/HeroSettings/Reservation_Settings', [
-            'settings' => $settings,
-            'whyBookItems' => $whyBookItems,
-        ]);
-    }
-
     public function update(Request $request)
     {
         $validated = $request->validate([
             'badge_text' => 'required|string|max:255',
+            'badge_icon' => 'nullable|string|max:50',
+            'badge_enabled' => 'boolean',
             'headline' => 'required|string|max:255',
             'headline_highlight' => 'required|string|max:255',
             'subtitle' => 'nullable|string',
@@ -45,7 +24,6 @@ class ReservationSettingController extends Controller
             'stat_pills.*.icon' => 'required|string',
             'stat_pills.*.text' => 'required|string',
             'is_active' => 'boolean',
-            'booking_terms' => 'nullable|string',
         ]);
 
         $settings = ReservationSetting::first();
@@ -58,7 +36,7 @@ class ReservationSettingController extends Controller
 
         Cache::forget('shared.reservationSettings');
 
-        return redirect()->route('admin.reservation-settings')->with('success', 'Reservation settings updated successfully.');
+        return redirect()->route('admin.hero-settings', ['page' => 'reservation'])->with('success', 'Reservation settings updated successfully.');
     }
 
     public function uploadImage(Request $request)
@@ -84,7 +62,7 @@ class ReservationSettingController extends Controller
 
         Cache::forget('shared.reservationSettings');
 
-        return redirect()->route('admin.reservation-settings')->with('success', 'Hero image added.');
+        return redirect()->route('admin.hero-settings', ['page' => 'reservation'])->with('success', 'Hero image added.');
     }
 
     public function updateImage(Request $request, ReservationHeroImage $reservationHeroImage)
@@ -107,7 +85,24 @@ class ReservationSettingController extends Controller
 
         Cache::forget('shared.reservationSettings');
 
-        return redirect()->route('admin.reservation-settings')->with('success', 'Hero image updated.');
+        return redirect()->route('admin.hero-settings', ['page' => 'reservation'])->with('success', 'Hero image updated.');
+    }
+
+    public function reorderImages(Request $request)
+    {
+        $request->validate([
+            'images' => 'required|array',
+            'images.*.id' => 'required|exists:reservation_hero_images,id',
+            'images.*.sort_order' => 'required|integer|min:0',
+        ]);
+
+        foreach ($request->images as $item) {
+            ReservationHeroImage::where('id', $item['id'])->update(['sort_order' => $item['sort_order']]);
+        }
+
+        Cache::forget('shared.reservationSettings');
+
+        return redirect()->back()->with('success', 'Images reordered.');
     }
 
     public function deleteImage(ReservationHeroImage $reservationHeroImage)
@@ -120,6 +115,6 @@ class ReservationSettingController extends Controller
 
         Cache::forget('shared.reservationSettings');
 
-        return redirect()->route('admin.reservation-settings')->with('success', 'Hero image removed.');
+        return redirect()->route('admin.hero-settings', ['page' => 'reservation'])->with('success', 'Hero image removed.');
     }
 }

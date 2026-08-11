@@ -9,12 +9,13 @@ class ReservationSetting extends Model
 {
     protected $fillable = [
         'badge_text',
+        'badge_icon',
+        'badge_enabled',
         'headline',
         'headline_highlight',
         'subtitle',
         'stat_pills',
         'is_active',
-        'booking_terms',
     ];
 
     protected function casts(): array
@@ -22,6 +23,7 @@ class ReservationSetting extends Model
         return [
             'stat_pills' => 'array',
             'is_active' => 'boolean',
+            'badge_enabled' => 'boolean',
         ];
     }
 

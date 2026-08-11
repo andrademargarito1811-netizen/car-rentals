@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Payment extends Model
 {
@@ -12,7 +13,7 @@ class Payment extends Model
 
     protected $fillable = [
         'booking_id', 'type', 'amount', 'payment_method',
-        'payment_status', 'transaction_id', 'card_last_four', 'metadata'
+        'payment_status', 'transaction_id', 'card_last_four', 'metadata',
     ];
 
     protected function casts(): array
@@ -24,7 +25,7 @@ class Payment extends Model
         ];
     }
 
-    public function booking(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    public function booking(): BelongsTo
     {
         return $this->belongsTo(Booking::class);
     }
@@ -44,9 +45,13 @@ class Payment extends Model
         return $this->type === 'full_payment';
     }
 
+    public function isRefund(): bool
+    {
+        return $this->type === 'refund';
+    }
+
     public function isCompleted(): bool
     {
         return $this->payment_status === 'completed';
     }
-
 }

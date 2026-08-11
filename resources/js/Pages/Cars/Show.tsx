@@ -43,6 +43,13 @@ interface CarShowProps {
     canLogin: boolean;
     canRegister: boolean;
     isAuthenticated: boolean;
+    reviews: {
+        id: number;
+        rating: number;
+        comment: string | null;
+        created_at?: string;
+        customer_name: string;
+    }[];
 }
 
 const CAR_IMAGES = [
@@ -268,7 +275,7 @@ function AvailabilityCalendar({ bookedDates }: { bookedDates: BookedDateInfo[] }
 
 type Tab = 'overview' | 'availability' | 'reviews';
 
-export default function CarShow({ car, booked_dates, similar_cars, canLogin, canRegister, isAuthenticated }: CarShowProps) {
+export default function CarShow({ car, booked_dates, similar_cars, canLogin, canRegister, isAuthenticated, reviews }: CarShowProps) {
     const route = useRoute();
     const [activeTab, setActiveTab] = useState<Tab>('overview');
     const contentRef = useRef<HTMLDivElement>(null);
@@ -314,6 +321,20 @@ export default function CarShow({ car, booked_dates, similar_cars, canLogin, can
     ];
 
     const typeStyle = getVehicleTypeStyle(car.vehicle_type ?? '');
+
+    const ratingBreakdown = useMemo(() => {
+        const counts = [0, 0, 0, 0, 0];
+        reviews.forEach((r) => {
+            const s = Math.max(1, Math.min(5, r.rating));
+            counts[s - 1]++;
+        });
+        const total = reviews.length;
+        return [5, 4, 3, 2, 1].map((star) => ({
+            star,
+            count: counts[star - 1],
+            pct: total > 0 ? Math.round((counts[star - 1] / total) * 100) : 0,
+        }));
+    }, [reviews]);
 
     return (
         <>
@@ -385,7 +406,7 @@ export default function CarShow({ car, booked_dates, similar_cars, canLogin, can
                                                 Available
                                             </span>
                                         )}
-                                        {car.ratings_count && car.ratings_count > 0 && car.avg_rating != null && (
+                                        {car.ratings_count != null && car.ratings_count > 0 && car.avg_rating != null && car.avg_rating > 0 && (
                                             <div className="inline-flex items-center gap-1 px-2 py-1 bg-white/90 backdrop-blur-sm rounded-lg shadow-sm">
                                                 <svg className="w-3 h-3 text-accent-400" fill="currentColor" viewBox="0 0 20 20">
                                                     <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
@@ -418,7 +439,7 @@ export default function CarShow({ car, booked_dates, similar_cars, canLogin, can
                                 {/* Header */}
                                 <div className="mb-4">
                                     <div className="flex items-center gap-2 mb-2">
-                                        {car.ratings_count && car.ratings_count > 0 && car.avg_rating != null ? (
+                                        {car.ratings_count != null && car.ratings_count > 0 && car.avg_rating != null && car.avg_rating > 0 ? (
                                             <div className="flex items-center gap-1.5">
                                                 <div className="flex items-center gap-0.5">
                                                     {[1, 2, 3, 4, 5].map((star) => (
@@ -453,7 +474,7 @@ export default function CarShow({ car, booked_dates, similar_cars, canLogin, can
                                             </div>
                                             <div className="min-w-0">
                                                 <p className="text-[10px] text-surface-400 font-medium uppercase tracking-wider">{spec.label}</p>
-                                                <p className={`text-sm font-bold ${spec.highlight ? 'text-emerald-600' : 'text-surface-900'}`}>{spec.value}</p>
+                                                <p className="text-sm font-bold text-surface-900">{spec.value}</p>
                                             </div>
                                         </div>
                                     ))}
@@ -692,7 +713,7 @@ export default function CarShow({ car, booked_dates, similar_cars, canLogin, can
                                     <div className="bg-white rounded-2xl shadow-card p-5">
                                         <h3 className="text-sm font-bold text-surface-900 mb-5">Customer Reviews</h3>
 
-                                        {car.ratings_count && car.ratings_count > 0 && car.avg_rating != null ? (
+                                        {car.ratings_count != null && car.ratings_count > 0 && car.avg_rating != null && car.avg_rating > 0 ? (
                                             <div>
                                                 {/* Rating Summary */}
                                                 <div className="flex items-center gap-5 mb-5 pb-5 border-b border-surface-100">
@@ -727,23 +748,18 @@ export default function CarShow({ car, booked_dates, similar_cars, canLogin, can
 
                                                 {/* Rating Bars */}
                                                 <div className="space-y-2">
-                                                    {[5, 4, 3, 2, 1].map((star) => {
-                                                        const pct = car.ratings_count!
-                                                            ? Math.round((star <= Math.round(car.avg_rating!) ? 70 : 15) * (car.ratings_count! / Math.max(car.ratings_count!, 1)))
-                                                            : 0;
-                                                        return (
-                                                            <div key={star} className="flex items-center gap-2">
-                                                                <span className="text-[10px] font-bold text-surface-400 w-2">{star}</span>
-                                                                <svg className="w-3 h-3 text-accent-400" fill="currentColor" viewBox="0 0 20 20">
-                                                                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                                                                </svg>
-                                                                <div className="flex-1 h-2 bg-surface-100 rounded-full overflow-hidden">
-                                                                    <div className="h-full bg-gradient-to-r from-accent-400 to-accent-500 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
-                                                                </div>
-                                                                <span className="text-[10px] text-surface-400 w-7 text-right tabular-nums">{pct}%</span>
+                                                    {ratingBreakdown.map(({ star, count, pct }) => (
+                                                        <div key={star} className="flex items-center gap-2">
+                                                            <span className="text-[10px] font-bold text-surface-400 w-2">{star}</span>
+                                                            <svg className="w-3 h-3 text-accent-400" fill="currentColor" viewBox="0 0 20 20">
+                                                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                                            </svg>
+                                                            <div className="flex-1 h-2 bg-surface-100 rounded-full overflow-hidden">
+                                                                <div className="h-full bg-gradient-to-r from-accent-400 to-accent-500 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
                                                             </div>
-                                                        );
-                                                    })}
+                                                            <span className="text-[10px] text-surface-400 w-7 text-right tabular-nums">{pct}%</span>
+                                                        </div>
+                                                    ))}
                                                 </div>
                                             </div>
                                         ) : (
@@ -765,33 +781,37 @@ export default function CarShow({ car, booked_dates, similar_cars, canLogin, can
                                                     <p className="text-surface-500 text-sm font-semibold mb-1">No reviews yet</p>
                                                     <p className="text-surface-400 text-xs">Be the first to share your experience</p>
                                                 </div>
+                                            </div>
+                                        )}
 
-                                                {/* Sample Review Cards (placeholder) */}
-                                                <div className="space-y-3">
-                                                    {[
-                                                        { name: 'Sarah M.', initials: 'SM', color: 'bg-violet-100 text-violet-600', rating: 5, text: 'Amazing car! Smooth ride and great fuel economy. Will definitely rent again.' },
-                                                        { name: 'James L.', initials: 'JL', color: 'bg-sky-100 text-sky-600', rating: 4, text: 'Perfect for our weekend trip. Clean and well-maintained. Highly recommended.' },
-                                                    ].map((review) => (
-                                                        <div key={review.name} className="p-3.5 bg-surface-50 rounded-xl border border-dashed border-surface-200">
-                                                            <div className="flex items-center gap-2.5 mb-2">
-                                                                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold ${review.color}`}>
-                                                                    {review.initials}
-                                                                </div>
-                                                                <div>
-                                                                    <p className="text-xs font-semibold text-surface-700">{review.name}</p>
-                                                                    <div className="flex items-center gap-0.5">
-                                                                        {[1, 2, 3, 4, 5].map((s) => (
-                                                                            <svg key={s} className={`w-2.5 h-2.5 ${s <= review.rating ? 'text-accent-400' : 'text-surface-200'}`} fill="currentColor" viewBox="0 0 20 20">
-                                                                                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                                                                            </svg>
-                                                                        ))}
-                                                                    </div>
+                                        {/* Customer Reviews */}
+                                        {reviews.length > 0 && (
+                                            <div className="mt-6 space-y-3">
+                                                {reviews.map((review) => (
+                                                    <div key={review.id} className="p-4 bg-surface-50 rounded-xl border border-surface-200">
+                                                        <div className="flex items-center gap-2.5 mb-2">
+                                                            <div className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold bg-brand-100 text-brand-700">
+                                                                {review.customer_name.split(/\s+/).map((part) => part.charAt(0)).slice(0, 2).join('').toUpperCase() || '?'}
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-xs font-semibold text-surface-700">{review.customer_name || 'Anonymous'}</p>
+                                                                <div className="flex items-center gap-1">
+                                                                    {[1, 2, 3, 4, 5].map((s) => (
+                                                                        <svg key={s} className={`w-2.5 h-2.5 ${s <= review.rating ? 'text-accent-400' : 'text-surface-200'}`} fill="currentColor" viewBox="0 0 20 20">
+                                                                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                                                        </svg>
+                                                                    ))}
                                                                 </div>
                                                             </div>
-                                                            <p className="text-xs text-surface-500 leading-relaxed italic">"{review.text}"</p>
+                                                            {review.created_at && (
+                                                                <span className="ml-auto text-[10px] text-surface-400">{review.created_at}</span>
+                                                            )}
                                                         </div>
-                                                    ))}
-                                                </div>
+                                                        {review.comment && (
+                                                            <p className="text-xs text-surface-600 leading-relaxed">{review.comment}</p>
+                                                        )}
+                                                    </div>
+                                                ))}
                                             </div>
                                         )}
                                     </div>
@@ -836,7 +856,7 @@ export default function CarShow({ car, booked_dates, similar_cars, canLogin, can
                                                 </h3>
                                                 <div className="flex items-center justify-between mt-1.5">
                                                     <span className="text-sm font-bold text-surface-900">{formatPrice(sc.daily_rate)}</span>
-                                                    {sc.ratings_count && sc.ratings_count > 0 && sc.avg_rating != null && (
+                                                    {sc.ratings_count != null && sc.ratings_count > 0 && sc.avg_rating != null && sc.avg_rating > 0 && (
                                                         <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-surface-500">
                                                             <svg className="w-3 h-3 text-accent-400" fill="currentColor" viewBox="0 0 20 20">
                                                                 <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />

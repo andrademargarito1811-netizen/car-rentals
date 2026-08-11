@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AboutUsSetting;
 use App\Models\Faq;
 use App\Models\FleetPageSetting;
+use App\Models\FooterSetting;
 use App\Models\HeroImage;
 use App\Models\HeroSetting;
 use App\Models\LocationsPageSetting;
@@ -19,7 +20,7 @@ use Inertia\Inertia;
 
 class HeroSettingController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         $settings = HeroSetting::with('images')->first();
 
@@ -64,9 +65,16 @@ class HeroSettingController extends Controller
             $aboutUsSettings = AboutUsSetting::create();
         }
 
+        // Brand (footer) settings
+        $footerSettings = FooterSetting::first();
+        if (!$footerSettings) {
+            $footerSettings = FooterSetting::create();
+        }
+
         $whyChooseUsItems = WhyChooseUsItem::orderBy('sort_order')->get();
         $faqItems = Faq::orderBy('sort_order')->get();
         $testimonialItems = Testimonial::orderBy('sort_order')->get();
+        $whyBookItems = \App\Models\WhyBookItem::orderBy('sort_order')->orderBy('created_at', 'desc')->get();
 
         return Inertia::render('Admin/HeroSettings/Index', [
             'homeSettings' => $settings,
@@ -77,6 +85,9 @@ class HeroSettingController extends Controller
             'reservationSettings' => $reservationSettings,
             'locationsPageSettings' => $locationsPageSettings,
             'aboutUsSettings' => $aboutUsSettings,
+            'footerSettings' => $footerSettings,
+            'whyBookItems' => $whyBookItems,
+            'page' => $request->query('page', 'home'),
         ]);
     }
 

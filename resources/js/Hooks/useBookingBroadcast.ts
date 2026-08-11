@@ -2,11 +2,13 @@ import { useEffect, useRef } from 'react';
 import { router } from '@inertiajs/react';
 import { toast } from 'sonner';
 
-export function useBookingBroadcast() {
+export function useBookingBroadcast(reloadProps?: string[]) {
     const cleanupRef = useRef<(() => void) | null>(null);
 
     useEffect(() => {
         if (!window.Echo) return;
+
+        const only = reloadProps && reloadProps.length > 0 ? reloadProps : ['bookings'];
 
         const pusher = (window.Echo as any).connector?.pusher;
 
@@ -28,11 +30,11 @@ export function useBookingBroadcast() {
                         },
                     });
 
-                    router.reload({ only: ['bookings'] });
+                    router.reload({ only });
                 });
 
                 channel.listen('.booking.updated', () => {
-                    router.reload({ only: ['bookings'] });
+                    router.reload({ only });
                 });
 
                 cleanupRef.current = () => {

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Booking;
 use App\Models\Review;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\URL;
 use Inertia\Inertia;
 
 class ReviewController extends Controller
@@ -25,6 +26,11 @@ class ReviewController extends Controller
 
         return Inertia::render('Reviews/Create', [
             'booking' => $booking,
+            'submitUrl' => URL::temporarySignedRoute(
+                'reviews.store',
+                now()->addDays(30),
+                ['booking' => $booking->reference_code],
+            ),
         ]);
     }
 

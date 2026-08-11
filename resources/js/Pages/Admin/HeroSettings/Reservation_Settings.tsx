@@ -348,7 +348,7 @@ export default function ReservationSettings({ settings, whyBookItems }: Props) {
                                                             {imagePreview ? (
                                                                 <div className="relative w-full">
                                                                     <img src={imagePreview} alt="Preview" className="w-full h-48 rounded-xl object-cover" />
-                                                                    <button type="button" onClick={e => { e.stopPropagation(); setImagePreview(null); imageForm.setData('image', null); document.getElementById('image-upload-input')!.value = ''; }}
+                                                                    <button type="button" onClick={e => { e.stopPropagation(); setImagePreview(null); imageForm.setData('image', null); (document.getElementById('image-upload-input') as HTMLInputElement).value = ''; }}
                                                                         className="absolute top-2 right-2 p-1.5 bg-black/60 text-white rounded-lg hover:bg-black/80 transition-colors">
                                                                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                                                                     </button>

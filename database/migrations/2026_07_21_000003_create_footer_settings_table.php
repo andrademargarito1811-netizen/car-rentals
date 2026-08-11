@@ -11,10 +11,10 @@ return new class extends Migration
         Schema::create('footer_settings', function (Blueprint $table) {
             $table->id();
             $table->string('brand_name', 255)->default('West Car Rentals');
-            $table->text('brand_description')->nullable()->default('Premium car rental services with locations across the country. Your journey starts here.');
+            $table->text('brand_description')->nullable();
             $table->string('logo_path', 255)->nullable()->default('/img/company_logo/company-logos-01.png');
             $table->string('newsletter_heading', 255)->default('Stay in the loop');
-            $table->text('newsletter_description')->nullable()->default('Get the latest deals and updates delivered to your inbox.');
+            $table->text('newsletter_description')->nullable();
             $table->string('newsletter_placeholder', 255)->default('Enter your email');
             $table->boolean('newsletter_active')->default(true);
             $table->string('contact_email', 255)->default('info@westcarsales.com');

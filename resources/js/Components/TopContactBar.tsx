@@ -1,7 +1,7 @@
 import { usePage } from '@inertiajs/react';
 
 export default function TopContactBar() {
-    const { footerSettings } = usePage().props as { footerSettings: { contact_phone: string; contact_email: string } | null };
+    const { footerSettings } = usePage().props as unknown as { footerSettings: { contact_phone: string; contact_email: string } | null };
 
     const phone = footerSettings?.contact_phone || '+1 (800) 555-WEST';
     const email = footerSettings?.contact_email || 'info@westcarsales.com';

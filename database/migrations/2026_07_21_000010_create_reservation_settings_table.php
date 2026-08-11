@@ -13,7 +13,7 @@ return new class extends Migration
             $table->string('badge_text', 255)->default('Palau Exclusive');
             $table->string('headline', 255)->default('Reserve Your');
             $table->string('headline_highlight', 255)->default('Ride');
-            $table->text('subtitle')->nullable()->default('Complete the form below to secure your perfect vehicle. Palau-exclusive rentals for a truly unique experience.');
+            $table->text('subtitle')->nullable();
             $table->json('stat_pills')->nullable();
             $table->boolean('is_active')->default(true);
             $table->timestamps();

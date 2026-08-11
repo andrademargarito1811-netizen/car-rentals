@@ -23,7 +23,8 @@ interface ReservationsIndexProps {
         links: Array<{ url: string | null; label: string; active: boolean }>;
     };
     filters?: {
-        search: string | null;
+        status?: string;
+        search?: string | null;
     };
 }
 
@@ -66,7 +67,8 @@ export default function ReservationsIndex({ bookings, filters }: ReservationsInd
         }
         if (debounceRef.current) clearTimeout(debounceRef.current);
         debounceRef.current = setTimeout(() => {
-            router.get(route('admin.bookings.index'), {
+            router.get(route('admin.reservations.index'), {
+                status: filters?.status || '',
                 search,
             }, {
                 preserveState: true,
@@ -76,6 +78,13 @@ export default function ReservationsIndex({ bookings, filters }: ReservationsInd
         }, 400);
         return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
     }, [search]);
+
+    function updateFilter(status: string) {
+        router.get(route('admin.reservations.index'), { status, search }, { preserveState: true, preserveScroll: true });
+    }
+
+    const filterBtns = ['', 'pending', 'confirmed', 'active', 'completed', 'cancelled'];
+    const filterLabels = ['All', 'Pending', 'Confirmed', 'Active', 'Completed', 'Cancelled'];
 
     const statusCounts = {
         total: bookings.data.length,
@@ -148,11 +157,21 @@ export default function ReservationsIndex({ bookings, filters }: ReservationsInd
 
                         {/* Reservations table */}
                         <div className="space-y-5">
-                            <div className="flex items-center gap-4">
-                                <span className="text-[11px] font-semibold uppercase tracking-[0.15em] text-surface-400 dark:text-surface-500 shrink-0">Reservations</span>
-                                {search && <span className="text-[11px] text-surface-400 dark:text-surface-500">({bookings.data.length} result{bookings.data.length !== 1 ? 's' : ''})</span>}
-                                <span className="flex-1 h-px bg-gradient-to-r from-surface-200 dark:from-surface-700 to-transparent" />
-                                <div className="relative w-72">
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                                <div className="flex flex-wrap gap-1.5">
+                                    {filterBtns.map((status, i) => (
+                                        <button key={status} onClick={() => updateFilter(status)}
+                                            className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 ${
+                                                (!filters?.status && !status) || filters?.status === status
+                                                    ? 'bg-brand-600 text-white shadow-sm shadow-brand-500/20 ring-1 ring-brand-500/30'
+                                                    : 'text-surface-600 dark:text-surface-300 bg-white dark:bg-brand-800/60 hover:bg-surface-100 dark:hover:bg-surface-700/60 hover:text-surface-900 dark:hover:text-white ring-1 ring-surface-200 dark:ring-surface-600/30'
+                                            }`}>
+                                            {filterLabels[i]}
+                                        </button>
+                                    ))}
+                                </div>
+                                <span className="hidden sm:block flex-1 h-px bg-gradient-to-r from-surface-200 dark:from-surface-700 to-transparent" />
+                                <div className="relative w-full sm:w-60">
                                     <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-400 dark:text-surface-500 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                         <circle cx="11" cy="11" r="8" />
                                         <path d="m21 21-4.3-4.3" />

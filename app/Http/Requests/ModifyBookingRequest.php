@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Booking;
 use Illuminate\Foundation\Http\FormRequest;
 
 class ModifyBookingRequest extends FormRequest
@@ -11,14 +12,14 @@ class ModifyBookingRequest extends FormRequest
         $user = $this->user();
 
         $booking = $this->route('booking');
-        if (!$booking) {
+        if (! $booking) {
             $reference = $this->route('reference');
             if ($reference) {
-                $booking = \App\Models\Booking::where('reference_code', $reference)->first();
+                $booking = Booking::where('reference_code', $reference)->first();
             }
         }
 
-        if (!$user && $booking && !$booking->user_id) {
+        if (! $user && $booking && ! $booking->user_id) {
             return $booking->status === 'pending';
         }
 
@@ -48,17 +49,10 @@ class ModifyBookingRequest extends FormRequest
             'state' => 'nullable|string|max:100',
             'city' => 'nullable|string|max:100',
             'postal_code' => 'nullable|string|max:20',
+            'company_name' => 'nullable|string|max:150',
             'flight_no' => 'nullable|string|max:50',
 
             'coupon_code' => 'nullable|string|max:16',
-            'discount' => 'nullable|numeric|min:0',
-            'tax_breakdown' => 'nullable|array',
-            'tax_breakdown.*.id' => 'nullable|integer',
-            'tax_breakdown.*.tax_desc' => 'required|string',
-            'tax_breakdown.*.amount' => 'required|numeric',
-            'tax_breakdown.*.add_or_minus' => 'required|boolean',
-            'total_tax' => 'nullable|numeric|min:0',
-            'total_surcharge' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string',
         ];
     }

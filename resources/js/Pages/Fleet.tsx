@@ -3,6 +3,7 @@ import GuestLayout from '@/Layouts/GuestLayout';
 import FilterSidebar from '@/Components/FilterSidebar';
 import { Head, Link, usePage } from '@inertiajs/react';
 import { useRoute } from 'ziggy-js';
+import { cn } from '@/lib/utils';
 import { countries as countriesList } from '@/data/countries';
 
 interface BookedDateInfo {
@@ -45,8 +46,19 @@ interface HeroSettings {
     images: { id: number; image_path: string; tagline: string | null; alt_text: string | null; sort_order: number }[];
 }
 
+interface FleetPageSetting {
+    id: number;
+    hero_badge: string;
+    hero_title: string;
+    hero_highlight: string;
+    hero_description: string | null;
+    hero_image_path: string | null;
+    is_active: boolean;
+}
+
 interface FleetProps {
     cars: { data: Car[]; links: { url: string | null; label: string; active: boolean }[] };
+    fleetSettings?: FleetPageSetting;
 }
 
 type FilterKey = 'all' | 'available' | 'top-rated' | 'value';
@@ -961,7 +973,7 @@ function HeroStat({
 }
 
 function RatingBadge({ value, count, light = false }: { value: number; count: number; light?: boolean }) {
-    if (count === 0) {
+    if (count === 0 || value <= 0) {
         return (
             <span
                 className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-bold backdrop-blur-md ${
@@ -2287,7 +2299,7 @@ function BookingSummaryPanel({
     const [breakdownOpen, setBreakdownOpen] = useState(true);
     const [priceFlash, setPriceFlash] = useState(false);
     const prevTotalRef = useRef(0);
-    const [taxItems, setTaxItems] = useState<{ id: number; tax_desc: string; category: string; amount: number; add_or_minus: boolean }[]>([]);
+    const [taxItems, setTaxItems] = useState<{ id: number; tax_desc: string; category: string; amount: number; add_or_minus: boolean; value_in: string; rate: number }[]>([]);
 
     const toggleExtra = (key: string) => {
         setExtras((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -3143,7 +3155,7 @@ function BookingPopover({
     const billableDays = Math.max(days, 1);
     const baseRate = selectedCar?.daily_rate ?? 0;
     const baseSubtotal = baseRate * billableDays;
-    const [taxItems, setTaxItems] = useState<{ id: number; tax_desc: string; category: string; amount: number; add_or_minus: boolean }[]>([]);
+    const [taxItems, setTaxItems] = useState<{ id: number; tax_desc: string; category: string; amount: number; add_or_minus: boolean; value_in: string; rate: number }[]>([]);
     const netTax = taxItems.reduce((sum, t) => sum + (t.add_or_minus ? t.amount : -t.amount), 0);
     const grandTotal = baseSubtotal + netTax;
     const hasValidRange = days > 0 && startDate && endDate;
@@ -3475,7 +3487,7 @@ function BookingPopover({
     );
 }
 
-export default function Fleet({ cars }: FleetProps) {
+export default function Fleet({ cars, fleetSettings }: FleetProps) {
     const route = useRoute();
     const page = usePage();
     const heroSettings: HeroSettings | null = (page.props as any)?.heroSettings ?? null;
@@ -3652,9 +3664,9 @@ export default function Fleet({ cars }: FleetProps) {
         const chips: { key: string; label: string; icon: React.ReactNode; onRemove: () => void }[] = [];
         if (filter !== 'all') {
             const map: Record<string, { label: string; icon: React.ReactNode }> = {
-                available: { label: 'Available now', icon: FilterIcons.available },
-                'top-rated': { label: 'Top Rated', icon: FilterIcons.topRated },
-                value: { label: 'Best Value', icon: FilterIcons.value },
+                available: { label: 'Available now', icon: <FilterIcons.available /> },
+                'top-rated': { label: 'Top Rated', icon: <FilterIcons.topRated /> },
+                value: { label: 'Best Value', icon: <FilterIcons.value /> },
             };
             const m = map[filter];
             if (m) {
@@ -3818,29 +3830,52 @@ export default function Fleet({ cars }: FleetProps) {
             <Head title="Our Fleet" />
 
             {/* Hero Header with Booking Summary Card */}
-            <section className="relative min-h-[220px] sm:min-h-[300px]">
-                <img
-                    src={heroSettings?.fleet_image_path ? `/storage/${heroSettings.fleet_image_path}` : 'https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=1920&h=800&fit=crop'}
-                    alt={heroSettings?.badge_text || 'Car on road'}
-                    className="absolute inset-0 w-full h-full object-cover"
-                />
-                <div className="absolute inset-0 bg-gradient-to-r from-brand-900/95 via-brand-900/80 to-brand-900/50" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+            <section className={cn('relative', fleetSettings?.is_active !== false ? 'min-h-[220px] sm:min-h-[300px]' : '')}>
+                {fleetSettings?.is_active !== false ? (
+                    <>
+                        <img
+                            src={fleetSettings?.hero_image_path ? `/storage/${fleetSettings.hero_image_path}` : heroSettings?.fleet_image_path ? `/storage/${heroSettings.fleet_image_path}` : 'https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=1920&h=800&fit=crop'}
+                            alt={fleetSettings?.hero_badge || heroSettings?.badge_text || 'Car on road'}
+                            className="absolute inset-0 w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-r from-brand-900/95 via-brand-900/80 to-brand-900/50" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
 
-                {/* Hero Content */}
-                <div className="absolute inset-0 flex items-center">
-                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
-                        <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white leading-[1.1] tracking-tight">
-                            Browse <span className="gradient-text">Our Fleet</span>
-                        </h1>
-                        <p className="text-white/70 text-sm sm:text-base mt-2 max-w-2xl leading-relaxed">
-                            Find your perfect drive — search, compare, and book the car that fits your journey.
-                        </p>
-                    </div>
-                </div>
+                        <div className="absolute inset-0 flex items-center">
+                            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+                                {fleetSettings?.hero_badge && (
+                                    <span className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-full border bg-accent-400/15 text-accent-300 border-accent-400/25 mb-3 w-fit backdrop-blur-sm">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-accent-400 animate-pulse" />
+                                        {fleetSettings.hero_badge}
+                                    </span>
+                                )}
+                                <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white leading-[1.1] tracking-tight">
+                                    {fleetSettings?.hero_title || 'Browse'}{' '}
+                                    {fleetSettings?.hero_highlight ? (
+                                        <span className="gradient-text">{fleetSettings.hero_highlight}</span>
+                                    ) : (
+                                        <span className="gradient-text">Our Fleet</span>
+                                    )}
+                                </h1>
+                                {fleetSettings?.hero_description && (
+                                    <p className="text-white/70 text-sm sm:text-base mt-2 max-w-2xl leading-relaxed">
+                                        {fleetSettings.hero_description}
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                    </>
+                ) : (
+                    <div className="h-4 sm:h-6" />
+                )}
 
-                {/* Booking Summary Card - centered at bottom edge of header */}
-                <div className="absolute inset-x-0 bottom-0 translate-y-1/2 z-40">
+                {/* Booking Summary Card */}
+                <div className={cn(
+                    'z-40',
+                    fleetSettings?.is_active !== false
+                        ? 'absolute inset-x-0 bottom-0 translate-y-1/2'
+                        : 'px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6 max-w-7xl mx-auto'
+                )}>
                     <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                         <div className="relative bg-white/95 backdrop-blur-lg rounded-2xl shadow-2xl shadow-brand-900/20 border border-surface-200/80 hover:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)] hover:-translate-y-1 transition-all duration-500 overflow-hidden">
                             <div className="absolute top-0 left-0 right-0 h-1 -mx-2 sm:-mx-3 bg-gradient-to-r from-brand-500 via-accent-400 to-brand-500 pointer-events-none" />

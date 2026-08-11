@@ -45,20 +45,21 @@ class LocationController extends Controller
     {
         $validated = $request->validate([
             'hero_badge' => 'required|string|max:255',
+            'hero_badge_active' => 'boolean',
             'hero_title' => 'required|string|max:255',
             'hero_highlight' => 'required|string|max:255',
             'hero_description' => 'nullable|string',
             'hero_image' => 'nullable|image|max:5120',
-            'hero_button_text' => 'required|string|max:255',
-            'hero_phone_label' => 'required|string|max:255',
-            'hero_phone_number' => 'required|string|max:100',
+            'hero_button_text' => 'nullable|string|max:255',
+            'hero_phone_label' => 'nullable|string|max:255',
+            'hero_phone_number' => 'nullable|string|max:100',
             'hero_active' => 'boolean',
             'cta_title' => 'required|string|max:255',
             'cta_description' => 'nullable|string',
-            'cta_button_text' => 'required|string|max:255',
-            'cta_button_url' => 'required|string|max:255',
-            'cta_phone_label' => 'required|string|max:255',
-            'cta_phone_number' => 'required|string|max:100',
+            'cta_button_text' => 'nullable|string|max:255',
+            'cta_button_url' => 'nullable|string|max:255',
+            'cta_phone_label' => 'nullable|string|max:255',
+            'cta_phone_number' => 'nullable|string|max:100',
             'cta_active' => 'boolean',
         ]);
 
@@ -78,7 +79,7 @@ class LocationController extends Controller
 
         Cache::forget('shared.locations');
 
-        return redirect()->route('admin.locations.index')->with('success', 'Page settings updated successfully.');
+        return redirect()->back()->with('success', 'Page settings updated successfully.');
     }
 
     public function store(Request $request)

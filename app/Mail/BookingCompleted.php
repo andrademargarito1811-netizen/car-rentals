@@ -8,6 +8,7 @@ use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\URL;
 
 class BookingCompleted extends Mailable
 {
@@ -23,7 +24,7 @@ class BookingCompleted extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Thank You - Your Rental with ' . config('app.name'),
+            subject: 'Thank You - Your Rental with '.config('app.name'),
         );
     }
 
@@ -33,6 +34,11 @@ class BookingCompleted extends Mailable
             markdown: 'emails.booking-completed',
             with: [
                 'booking' => $this->booking,
+                'reviewUrl' => URL::temporarySignedRoute(
+                    'reviews.create',
+                    now()->addDays(30),
+                    ['booking' => $this->booking->reference_code],
+                ),
             ],
         );
     }

@@ -16,6 +16,7 @@ export default {
         extend: {
             fontFamily: {
                 sans: ['Figtree', ...defaultTheme.fontFamily.sans],
+                display: ['"Playfair Display"', 'Georgia', 'Cambria', 'serif'],
             },
             colors: {
                 border: 'hsl(var(--border))',

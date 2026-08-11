@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import GuestLayout from '@/Layouts/GuestLayout';
 import { Head, Link, useForm, router, usePage } from '@inertiajs/react';
 import { useRoute } from 'ziggy-js';
+import { cn } from '@/lib/utils';
+import { countries as countriesList } from '@/data/countries';
 
 interface HeroImage {
     id: number;
@@ -35,6 +37,8 @@ interface WhyBookItem {
 interface ReservationSettings {
     id: number;
     badge_text: string;
+    badge_enabled?: boolean;
+    badge_icon?: string;
     headline: string;
     headline_highlight: string;
     subtitle: string | null;
@@ -42,6 +46,15 @@ interface ReservationSettings {
     is_active: boolean;
     hero_images: HeroImage[];
 }
+
+const BADGE_ICON_PATHS: Record<string, string> = {
+    tag: 'M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z',
+    percent: 'M14.25 7.756a4.5 4.5 0 11-8.25-3.568M3 21l18-18M21 14.25a4.5 4.5 0 00-8.25 3.568M9 21l3-3m3-3l3-3',
+    dollar: 'M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+    star: 'M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z',
+    shield: 'M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z',
+    location: 'M15 10.5a3 3 0 11-6 0 3 3 0 016 0zM19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z',
+};
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const;
 
@@ -94,23 +107,6 @@ function formatHours(hoursString: string): { days: string; hours: string }[] | n
         return { days: dayLabel, hours: g.closed ? 'Closed' : `${g.open} - ${g.close}` };
     });
 }
-
-const countries = [
-    'Palau',
-    'United States',
-    'Japan',
-    'Philippines',
-    'Taiwan',
-    'South Korea',
-    'China',
-    'Australia',
-    'New Zealand',
-    'Germany',
-    'United Kingdom',
-    'France',
-    'Canada',
-    'Other',
-];
 
 const steps = [
     { num: '01', title: 'Choose Dates', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
@@ -188,6 +184,14 @@ export default function Reservation() {
     };
 
     const [currentSlide, setCurrentSlide] = useState(0);
+    const [countrySearch, setCountrySearch] = useState('');
+    const [countryOpen, setCountryOpen] = useState(false);
+
+    const filteredCountries = useMemo(() => {
+        const q = countrySearch.trim().toLowerCase();
+        if (!q) return countriesList;
+        return countriesList.filter(c => c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q));
+    }, [countrySearch]);
 
     useEffect(() => {
         const interval = setInterval(() => {
@@ -241,26 +245,22 @@ export default function Reservation() {
                 <div className="absolute inset-0 flex items-center">
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
                         <div className="max-w-2xl">
-                            <span className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md rounded-full border border-white/20 mb-5 animate-fade-in-down">
-                                {(() => {
-                                    const iconPath: Record<string, string> = {
-                                        tag: 'M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z',
-                                        percent: 'M14.25 7.756a4.5 4.5 0 11-8.25-3.568M3 21l18-18M21 14.25a4.5 4.5 0 00-8.25 3.568M9 21l3-3m3-3l3-3',
-                                        dollar: 'M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
-                                        star: 'M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z',
-                                        shield: 'M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z',
-                                        location: 'M15 10.5a3 3 0 11-6 0 3 3 0 016 0zM19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z',
-                                    };
-                                    return heroSettings?.badge_icon && iconPath[heroSettings.badge_icon] ? (
-                                        <svg className="w-3.5 h-3.5 text-accent-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
-                                            <path strokeLinecap="round" strokeLinejoin="round" d={iconPath[heroSettings.badge_icon]} />
-                                        </svg>
-                                    ) : (
-                                        <span className="w-2 h-2 rounded-full bg-accent-400 animate-pulse" />
-                                    );
-                                })()}
-                                <span className="text-sm font-medium text-white/90">{heroSettings?.badge_text || settings?.badge_text || 'Palau Exclusive'}</span>
-                            </span>
+                            {settings?.badge_enabled !== false && (
+                                <span className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md rounded-full border border-white/20 mb-5 animate-fade-in-down">
+                                    {(() => {
+                                        const iconPath = BADGE_ICON_PATHS;
+                                        const badgeIcon = settings?.badge_icon || heroSettings?.badge_icon;
+                                        return badgeIcon && iconPath[badgeIcon] ? (
+                                            <svg className="w-3.5 h-3.5 text-accent-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
+                                                <path strokeLinecap="round" strokeLinejoin="round" d={iconPath[badgeIcon]} />
+                                            </svg>
+                                        ) : (
+                                            <span className="w-2 h-2 rounded-full bg-accent-400 animate-pulse" />
+                                        );
+                                    })()}
+                                    <span className="text-sm font-medium text-white/90">{settings?.badge_text || 'Palau Exclusive'}</span>
+                                </span>
+                            )}
                             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white tracking-tight mb-4 animate-fade-in-up leading-[1.1]">
                                 {settings?.headline || 'Reserve Your'}{' '}
                                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-accent-400 to-accent-300">{settings?.headline_highlight || 'Ride'}</span>
@@ -480,15 +480,37 @@ export default function Reservation() {
                                             <h4 className="text-sm font-bold text-surface-900">Borrower Information</h4>
                                         </div>
                                         <div className="space-y-3">
-                                            <div>
+                                            <div className="relative">
                                                 <label className="label-text">Country of Residence</label>
-                                                <select value={data.country} onChange={(e) => setData('country', e.target.value)} className="input-field" required>
-                                                    <option value="">Select your country</option>
-                                                    {countries.map((c) => (
-                                                        <option key={c} value={c}>{c}</option>
-                                                    ))}
-                                                </select>
+                                                <input type="text" value={data.country || countrySearch}
+                                                    onChange={e => { setCountrySearch(e.target.value); setData('country', e.target.value); setCountryOpen(true); }}
+                                                    onFocus={() => setCountryOpen(true)}
+                                                    className="input-field" placeholder="Search your country..." required />
                                                 {errors.country && <p className="mt-1 text-xs text-red-600">{errors.country}</p>}
+                                                {countryOpen && (
+                                                    <>
+                                                        <div className="fixed inset-0 z-10" onClick={() => setCountryOpen(false)} />
+                                                        <div className="absolute z-20 top-full left-0 right-0 mt-1 max-h-48 overflow-y-auto rounded-xl bg-white dark:bg-brand-800 border border-surface-200 dark:border-surface-700/60 shadow-lg">
+                                                            {filteredCountries.length === 0 ? (
+                                                                <div className="px-3 py-2 text-xs text-surface-400">No countries found</div>
+                                                            ) : (
+                                                                filteredCountries.map(c => (
+                                                                    <button key={c.code} type="button"
+                                                                        onClick={() => { setData('country', c.name); setCountrySearch(''); setCountryOpen(false); }}
+                                                                        className={cn(
+                                                                            'w-full flex items-center gap-2 px-3 py-2 text-xs text-left transition-colors',
+                                                                            data.country === c.name
+                                                                                ? 'bg-accent-50 dark:bg-accent-900/20 text-accent-700 dark:text-accent-300'
+                                                                                : 'text-surface-700 dark:text-surface-300 hover:bg-surface-50 dark:hover:bg-surface-700/50'
+                                                                        )}>
+                                                                        <span className="text-base">{c.flag}</span>
+                                                                        <span>{c.name}</span>
+                                                                    </button>
+                                                                ))
+                                                            )}
+                                                        </div>
+                                                    </>
+                                                )}
                                             </div>
 
                                             {heroSettings?.booking_badge_enabled !== false && (() => {
@@ -681,19 +703,28 @@ export default function Reservation() {
                                     ))}
                                 </div>
 
-                                {/* Why Book With Us - Compact */}
+                                {/* Why Book With Us */}
                                 {whyBookItems.length > 0 && (
-                                    <div className="mt-6 p-4 bg-white rounded-2xl border border-surface-100 shadow-sm">
+                                    <div className="mt-6 p-5 bg-white rounded-2xl border border-surface-100 shadow-sm">
                                         <h4 className="text-sm font-bold text-surface-900 mb-3">Why Book With Us</h4>
-                                        <div className="grid grid-cols-2 gap-2">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                             {whyBookItems.map((item) => (
-                                                <div key={item.id} className="flex items-center gap-2 py-1.5">
-                                                    <div className="w-6 h-6 rounded-lg bg-brand-50 flex items-center justify-center shrink-0">
-                                                        <svg className="w-3 h-3 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={item.icon_svg || 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z'} />
-                                                        </svg>
+                                                <div key={item.id} className="group relative flex items-start gap-3 p-2.5 rounded-xl hover:bg-brand-50/60 transition-all duration-200 cursor-default">
+                                                    <div className="w-8 h-8 rounded-xl bg-brand-50 flex items-center justify-center shrink-0 mt-0.5 group-hover:bg-brand-100 transition-colors">
+                                                        {item.icon_svg ? (
+                                                            <svg className="w-4 h-4 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" d={item.icon_svg} />
+                                                            </svg>
+                                                        ) : (
+                                                            <span className="text-brand-500 text-sm">✦</span>
+                                                        )}
                                                     </div>
-                                                    <span className="text-xs font-semibold text-surface-700">{item.title}</span>
+                                                    <div>
+                                                        <span className="text-sm font-semibold text-surface-800">{item.title}</span>
+                                                        {item.description && (
+                                                            <p className="text-[11px] text-surface-500 mt-0.5 leading-relaxed">{item.description}</p>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             ))}
                                         </div>

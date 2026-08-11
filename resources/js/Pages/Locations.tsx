@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import GuestLayout from '@/Layouts/GuestLayout';
 import { Head, usePage, Link } from '@inertiajs/react';
 import { useRoute } from 'ziggy-js';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 
 interface LocationData {
     location_id: number;
@@ -96,11 +98,11 @@ function LocationCard({ location, index }: { location: LocationData; index: numb
     return (
         <div
             ref={cardRef}
-            className="opacity-0 translate-y-12 transition-all duration-700 ease-out"
+            className="opacity-0 translate-y-12 transition-all duration-700 ease-out h-full"
             style={{ transitionDelay: `${index * 150}ms` }}
         >
             <div
-                className="group relative bg-white rounded-3xl overflow-hidden shadow-card hover:shadow-elevated transition-all duration-500 hover:-translate-y-1"
+                className="group relative bg-white rounded-3xl overflow-hidden shadow-card hover:shadow-elevated transition-all duration-500 hover:-translate-y-1 flex flex-col h-full"
                 onMouseEnter={() => setIsHovered(true)}
                 onMouseLeave={() => setIsHovered(false)}
             >
@@ -129,7 +131,7 @@ function LocationCard({ location, index }: { location: LocationData; index: numb
                 </div>
 
                 {/* Content Section */}
-                <div className="p-6 sm:p-8">
+                <div className="flex flex-col flex-1 p-6 sm:p-8">
                     {location.description && <p className="text-surface-600 text-sm leading-relaxed mb-6">{location.description}</p>}
 
                     {/* Info Grid */}
@@ -210,7 +212,7 @@ function LocationCard({ location, index }: { location: LocationData; index: numb
                             href={`https://www.google.com/maps/dir/?api=1&destination=${location.lat},${location.lng}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center justify-center gap-2 w-full py-3 px-6 bg-brand-800 hover:bg-brand-900 text-white font-semibold rounded-xl transition-all duration-300 hover:shadow-glow-blue group/btn"
+                            className="flex items-center justify-center gap-2 w-full py-3 px-6 bg-brand-800 hover:bg-brand-900 text-white font-semibold rounded-xl transition-all duration-300 hover:shadow-glow-blue group/btn mt-auto"
                         >
                             <svg className="w-4 h-4 transition-transform group-hover/btn:-translate-y-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
@@ -231,74 +233,59 @@ function MapSection({ locations }: { locations: LocationData[] }) {
     useEffect(() => {
         if (!mapRef.current || mapInstanceRef.current) return;
 
-        // Load Leaflet CSS
-        const link = document.createElement('link');
-        link.rel = 'stylesheet';
-        link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-        document.head.appendChild(link);
+        const map = L.map(mapRef.current, {
+            center: [7.355, 134.505],
+            zoom: 12,
+            scrollWheelZoom: false,
+            zoomControl: false,
+        });
 
-        // Load Leaflet JS
-        const script = document.createElement('script');
-        script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-        script.onload = () => {
-            const L = (window as any).L;
-            if (!L || !mapRef.current) return;
+        L.control.zoom({ position: 'topright' }).addTo(map);
 
-            const map = L.map(mapRef.current, {
-                center: [7.355, 134.505],
-                zoom: 12,
-                scrollWheelZoom: false,
-                zoomControl: false,
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+            maxZoom: 19,
+        }).addTo(map);
+
+        // Custom icon
+        const createIcon = (color: string) =>
+            L.divIcon({
+                html: `<div style="width:36px;height:36px;border-radius:50%;background:${color};border:3px solid white;box-shadow:0 4px 12px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/>
+                        <circle cx="12" cy="10" r="3"/>
+                    </svg>
+                </div>`,
+                className: '',
+                iconSize: [36, 36],
+                iconAnchor: [18, 36],
+                popupAnchor: [0, -36],
             });
 
-            L.control.zoom({ position: 'topright' }).addTo(map);
-
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-                maxZoom: 19,
+        locations.forEach((loc) => {
+            if (!loc.lat || !loc.lng) return;
+            const marker = L.marker([loc.lat, loc.lng], {
+                icon: createIcon(loc.location_id === 1 ? '#1e3a5f' : '#2563eb'),
             }).addTo(map);
 
-            // Custom icon
-            const createIcon = (color: string) =>
-                L.divIcon({
-                    html: `<div style="width:36px;height:36px;border-radius:50%;background:${color};border:3px solid white;box-shadow:0 4px 12px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/>
-                            <circle cx="12" cy="10" r="3"/>
-                        </svg>
-                    </div>`,
-                    className: '',
-                    iconSize: [36, 36],
-                    iconAnchor: [18, 36],
-                    popupAnchor: [0, -36],
-                });
-
-            locations.forEach((loc) => {
-                if (!loc.lat || !loc.lng) return;
-                const marker = L.marker([loc.lat, loc.lng], {
-                    icon: createIcon(loc.location_id === 1 ? '#1e3a5f' : '#2563eb'),
-                }).addTo(map);
-
-                marker.bindPopup(
-                    `<div style="padding:4px 0;font-family:sans-serif;">
-                        <strong style="font-size:14px;color:#1e293b;">${loc.location}</strong><br/>
-                        ${loc.subtitle ? `<span style="font-size:12px;color:#64748b;">${loc.subtitle}</span><br/>` : ''}
-                        ${loc.city ? `<span style="font-size:11px;color:#94a3b8;">${loc.city}</span>` : ''}
-                    </div>`,
-                    { closeButton: false, className: 'custom-popup' }
-                );
-            });
-
-            // Fit bounds
-            const validLocations = locations.filter(l => l.lat && l.lng);
-            const group = L.featureGroup(
-                validLocations.map((loc) => L.marker([loc.lat!, loc.lng!]))
+            marker.bindPopup(
+                `<div style="padding:4px 0;font-family:sans-serif;">
+                    <strong style="font-size:14px;color:#1e293b;">${loc.location}</strong><br/>
+                    ${loc.subtitle ? `<span style="font-size:12px;color:#64748b;">${loc.subtitle}</span><br/>` : ''}
+                    ${loc.city ? `<span style="font-size:11px;color:#94a3b8;">${loc.city}</span>` : ''}
+                </div>`,
+                { closeButton: false, className: 'custom-popup' }
             );
-            map.fitBounds(group.getBounds().pad(0.3));
+        });
 
-            mapInstanceRef.current = map;
-        };
-        document.body.appendChild(script);
+        // Fit bounds
+        const validLocations = locations.filter(l => l.lat && l.lng);
+        const group = L.featureGroup(
+            validLocations.map((loc) => L.marker([loc.lat!, loc.lng!]))
+        );
+        map.fitBounds(group.getBounds().pad(0.3));
+
+        mapInstanceRef.current = map;
 
         return () => {
             if (mapInstanceRef.current) {
@@ -368,10 +355,12 @@ export default function Locations({ locations: pageLocations, pageSettings: page
                     <div
                         className={`transition-all duration-700 ${heroLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}
                     >
-                        <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md rounded-full border border-white/20 mb-6">
-                            <span className="w-2 h-2 rounded-full bg-accent-400 animate-pulse" />
-                            <span className="text-sm font-medium text-white/90">{pageSettings?.hero_badge || 'Palau, Micronesia'}</span>
-                        </div>
+                        {pageSettings?.hero_badge_active !== false && (
+                            <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md rounded-full border border-white/20 mb-6">
+                                <span className="w-2 h-2 rounded-full bg-accent-400 animate-pulse" />
+                                <span className="text-sm font-medium text-white/90">{pageSettings?.hero_badge || 'Palau, Micronesia'}</span>
+                            </div>
+                        )}
                     </div>
 
                     <h1
@@ -399,7 +388,7 @@ export default function Locations({ locations: pageLocations, pageSettings: page
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
                             </svg>
-                            {pageSettings?.hero_button_text || 'View Locations'}
+                            View Locations
                         </a>
                         <Link
                             href={route('contact')}
@@ -408,7 +397,7 @@ export default function Locations({ locations: pageLocations, pageSettings: page
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                             </svg>
-                            {pageSettings?.hero_phone_label || 'Call Us'}
+                            Call Us
                         </Link>
                     </div>
                 </div>
@@ -476,7 +465,7 @@ export default function Locations({ locations: pageLocations, pageSettings: page
                             href={route('fleet')}
                             className="inline-flex items-center gap-2 px-8 py-4 bg-accent-400 hover:bg-accent-500 text-surface-900 font-bold rounded-xl transition-all duration-300 hover:shadow-glow-yellow text-lg"
                         >
-                            {pageSettings?.cta_button_text || 'Browse Vehicles'}
+                            Browse Vehicles
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
                             </svg>
@@ -488,7 +477,7 @@ export default function Locations({ locations: pageLocations, pageSettings: page
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                             </svg>
-                            {pageSettings?.cta_phone_label || 'Call Us'}
+                            Call Us
                         </Link>
                     </div>
                 </div>

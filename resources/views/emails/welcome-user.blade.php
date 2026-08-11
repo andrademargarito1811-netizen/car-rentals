@@ -5,19 +5,15 @@ Hello **{{ $user->name }}**,
 
 An account has been created for you at **{{ config('app.name') }}**.
 
-Here are your login credentials:
-
 <x-mail::panel>
 **Email:** {{ $user->email }}
 
-**Password:** `{{ $password }}`
+Your password was provided to you separately — for security we never send passwords by email.
 </x-mail::panel>
 
 <x-mail::button :url="route('login')">
 Login to Your Account
 </x-mail::button>
-
-For security, please change your password after logging in.
 
 Thanks,<br>
 {{ config('app.name') }}

@@ -38,7 +38,7 @@ export default function Testimonials({ items }: { items: TestimonialData[] }) {
 
     const total = items.length;
     const [activeIndex, setActiveIndex] = useState(0);
-    const intervalRef = useRef<ReturnType<typeof setInterval>>();
+    const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     const goTo = (index: number) => {
         const next = ((index % total) + total) % total;

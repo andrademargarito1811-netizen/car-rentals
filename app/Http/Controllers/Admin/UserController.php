@@ -5,12 +5,11 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreUserRequest;
 use App\Mail\WelcomeUser;
-use App\Models\User;
 use App\Models\AuditLog;
 use App\Models\Booking;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 
 class UserController extends Controller
@@ -22,7 +21,7 @@ class UserController extends Controller
         if ($search = $request->get('search')) {
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%");
+                    ->orWhere('email', 'like', "%{$search}%");
             });
         }
 
@@ -36,6 +35,11 @@ class UserController extends Controller
 
         $sortField = $request->get('sort_field', 'created_at');
         $sortDirection = $request->get('sort_direction', 'desc');
+        $allowedSorts = ['created_at', 'name', 'email', 'role', 'status'];
+        if (! in_array($sortField, $allowedSorts, true)) {
+            $sortField = 'created_at';
+        }
+        $sortDirection = in_array($sortDirection, ['asc', 'desc'], true) ? $sortDirection : 'desc';
         $query->orderBy($sortField, $sortDirection);
 
         $users = $query->paginate(15)->withQueryString();
@@ -90,7 +94,7 @@ class UserController extends Controller
         ]);
 
         if ($request->boolean('send_welcome_email')) {
-            Mail::to($user)->queue(new WelcomeUser($user, $request->password));
+            Mail::to($user)->queue(new WelcomeUser($user));
         }
 
         return redirect()->route('admin.users.index')->with('success', 'Account created successfully.');
@@ -127,7 +131,7 @@ class UserController extends Controller
             'stats' => [
                 'total_bookings' => Booking::where('user_id', $user->id)->count(),
                 'active_bookings' => Booking::where('user_id', $user->id)->active()->count(),
-                'total_spent' => Booking::where('user_id', $user->id)->sum('total_amount'),
+                'total_spent' => Booking::where('user_id', $user->id)->where('status', '!=', 'cancelled')->sum('total_amount'),
             ],
         ]);
     }
@@ -143,14 +147,14 @@ class UserController extends Controller
     {
         $rules = [
             'name' => 'required|string|max:255',
-            'email' => 'required|email|max:255|unique:users,email,' . $user->id,
+            'email' => 'required|email|max:255|unique:users,email,'.$user->id,
             'phone' => 'nullable|string|max:20',
             'address' => 'nullable|string|max:500',
         ];
 
         $isSelf = auth()->id() === $user->id;
 
-        if (!$isSelf) {
+        if (! $isSelf) {
             $rules['role'] = 'required|in:user,admin';
             $rules['status'] = 'required|in:active,suspended';
         }

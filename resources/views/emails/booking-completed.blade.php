@@ -1,5 +1,5 @@
 <x-mail::message>
-<img src="{{ $message->embed(public_path('img/company_logo/company-logos-01.png')) }}" alt="{{ config('app.name') }}" style="max-width: 160px; display: block; margin: 0 auto 24px;">
+<img src="{{ $message->embed($footerSettings?->logo_disk_path ?? public_path('img/company_logo/company-logos-01.png')) }}" alt="{{ config('app.name') }}" style="max-width: 160px; display: block; margin: 0 auto 24px;">
 
 # Thank You for Renting With Us
 
@@ -24,7 +24,7 @@ Your rental has been completed successfully.
 | **Total Paid** | <strong>${{ number_format($booking->total_amount, 2) }}</strong> |
 </x-mail::table>
 
-<x-mail::button :url="route('reviews.create', $booking->reference_code)">
+<x-mail::button :url="$reviewUrl">
 Leave a Review
 </x-mail::button>
 

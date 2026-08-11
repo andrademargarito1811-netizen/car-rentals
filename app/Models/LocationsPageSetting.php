@@ -8,6 +8,7 @@ class LocationsPageSetting extends Model
 {
     protected $fillable = [
         'hero_badge',
+        'hero_badge_active',
         'hero_title',
         'hero_highlight',
         'hero_description',
@@ -29,6 +30,7 @@ class LocationsPageSetting extends Model
     protected function casts(): array
     {
         return [
+            'hero_badge_active' => 'boolean',
             'hero_active' => 'boolean',
             'cta_active' => 'boolean',
             'is_active' => 'boolean',

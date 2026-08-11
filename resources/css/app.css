@@ -444,3 +444,35 @@
     0%, 100% { transform: translateX(0); }
     50% { transform: translateX(4px); }
 }
+
+/* Chip pop-in for damage rows */
+@keyframes chipPop {
+    0% { opacity: 0; transform: scale(0.92) translateY(3px); }
+    100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.chip-pop {
+    animation: chipPop 0.18s ease-out;
+}
+
+/* Position dot pop-in on the car diagram */
+@keyframes dotPop {
+    0% { opacity: 0; transform: translate(-50%, -50%) scale(0.4); }
+    100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+.dot-pop {
+    animation: dotPop 0.2s ease-out;
+}
+
+/* Print: let invoice output follow the paper selected in the print dialog and scale rem-based spacing to fit */
+@page {
+    size: letter;
+    margin: 10mm;
+}
+
+@media print {
+    :root {
+        font-size: 78%;
+    }
+}

@@ -13,14 +13,14 @@ return new class extends Migration
             $table->string('hero_badge', 255)->default('Palau, Micronesia');
             $table->string('hero_title', 255)->default('Our');
             $table->string('hero_highlight', 255)->default('Locations');
-            $table->text('hero_description')->nullable()->default('Two convenient locations across Palau — whether you\'re in the heart of Koror or arriving at the airport, we\'ve got you covered.');
+            $table->text('hero_description')->nullable();
             $table->string('hero_image_path', 255)->nullable();
             $table->string('hero_button_text', 255)->default('View Locations');
             $table->string('hero_phone_label', 255)->default('Call Us');
             $table->string('hero_phone_number', 255)->default('+6804881587');
             $table->boolean('hero_active')->default(true);
             $table->string('cta_title', 255)->default('Ready to Hit the Road?');
-            $table->text('cta_description')->nullable()->default('Book your vehicle today and explore the beautiful islands of Palau at your own pace.');
+            $table->text('cta_description')->nullable();
             $table->string('cta_button_text', 255)->default('Browse Vehicles');
             $table->string('cta_button_url', 255)->default('/vehicles');
             $table->string('cta_phone_label', 255)->default('Call Us');

@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import GuestLayout from '@/Layouts/GuestLayout';
 import { Head, Link, usePage } from '@inertiajs/react';
+import VehicleDamageMap from '@/Components/VehicleDamageMap';
+import type { VehicleDamage } from '@/lib/carZones';
 
 interface GuestShowProps {
     booking: {
@@ -52,6 +54,10 @@ interface GuestShowProps {
         return_location: { location: string } | null;
         coupon_usage: { code: string; discount_amount: number } | null;
         booking_taxes: { tax_desc: string; amount: number; add_or_minus: boolean }[];
+        pickup_handover: { fuel_level: number | null; odometer: number | null; notes: string | null; damages: VehicleDamage[] | null; captured_at: string | null } | null;
+        return_handover: { fuel_level: number | null; odometer: number | null; notes: string | null; damages: VehicleDamage[] | null; captured_at: string | null } | null;
+        extra_charges: { id: number; name: string; amount: string; tax_amount: string; operator: string }[];
+        handover_charges: { fuel_refuel: number; fuel_missing: number; excess_mileage: number; excess_km: number; km_driven: number; total: number } | null;
     };
 }
 
@@ -111,6 +117,16 @@ const formatTime = (value: string | null) => {
 const formatPrice = (value: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
 
+const formatOdometer = (value: number | null | undefined) =>
+    value == null ? '—' : `${Math.round(value).toLocaleString()}`;
+
+const FuelRow = ({ label, value }: { label: string; value: string }) => (
+    <div className="flex items-center justify-between py-2 border-b border-surface-100/60 last:border-b-0">
+        <span className="text-xs font-medium text-surface-400">{label}</span>
+        <span className="text-sm font-semibold text-surface-800">{value}</span>
+    </div>
+);
+
 const StatusDot = ({ status }: { status: string }) => {
     const map: Record<string, string> = {
         pending: 'bg-amber-400', confirmed: 'bg-emerald-400', active: 'bg-blue-400',
@@ -146,8 +162,9 @@ export default function GuestShow({ booking }: GuestShowProps) {
     useEffect(() => { if (flash?.success || flash?.error) setFlashVisible(true); }, []);
 
     const calcRentalDays = (pickupDate: string, pickupTime: string | null, returnDate: string, returnTime: string | null) => {
-        const start = new Date(`${pickupDate}T${pickupTime?.substring(0, 5) || '10:00'}:00`);
-        const end = new Date(`${returnDate}T${returnTime?.substring(0, 5) || '10:00'}:00`);
+        const toHHMM = (t?: string | null) => (t && t.length >= 5 ? t.substring(0, 5) : t || '');
+        const start = new Date(`${pickupDate}T${toHHMM(pickupTime) || '00:00'}:00`);
+        const end = new Date(`${returnDate}T${toHHMM(returnTime) || '23:59'}:00`);
         return Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
     };
     const days = calcRentalDays(booking.start_date, booking.pickup_time, booking.end_date, booking.return_time);
@@ -308,6 +325,62 @@ export default function GuestShow({ booking }: GuestShowProps) {
                                     <InfoRow label="Country" value={booking.guest?.country ?? '—'} />
                                 </div>
                             </div>
+
+                            {/* Vehicle Condition */}
+                            {(booking.pickup_handover || booking.return_handover) && (
+                                <div className="anim-fade d6 rounded-2xl border border-surface-100/80 bg-white shadow-sm overflow-hidden">
+                                    <div className="px-5 py-4 border-b border-surface-100/60">
+                                        <h2 className="text-sm font-bold text-surface-900 flex items-center gap-2">
+                                            <svg className="w-4 h-4 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20.5 7.5l1 1m0 0l-1 1m1-1H18m-6 11V7.5m3 0a3 3 0 00-3-3h-1.5a3 3 0 00-3 3v8.25M6 10.5H4.5a1.5 1.5 0 00-1.5 1.5v4.5a1.5 1.5 0 001.5 1.5h3a1.5 1.5 0 001.5-1.5V12a1.5 1.5 0 00-1.5-1.5H6z" />
+                                            </svg>
+                                            Vehicle Condition
+                                        </h2>
+                                    </div>
+                                    <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <div className="rounded-2xl border border-surface-100/80 bg-surface-50/50 p-4">
+                                            <p className="text-[10px] font-semibold uppercase tracking-widest text-surface-400 mb-3">At Pickup</p>
+                                            {booking.pickup_handover ? (
+                                                <>
+                                                    <FuelRow label="Fuel Level" value={booking.pickup_handover.fuel_level != null ? `${booking.pickup_handover.fuel_level}/8` : '—'} />
+                                                    <FuelRow label="Odometer" value={formatOdometer(booking.pickup_handover.odometer)} />
+                                                    {booking.pickup_handover.notes && <FuelRow label="Notes" value={booking.pickup_handover.notes} />}
+                                                    {booking.pickup_handover.damages && booking.pickup_handover.damages.length > 0 && (
+                                                        <div className="pt-3 border-t border-surface-100/60 mt-3">
+                                                            <p className="text-[10px] font-semibold uppercase tracking-widest text-surface-400 mb-2">
+                                                                Damage ({booking.pickup_handover.damages.length})
+                                                            </p>
+                                                            <VehicleDamageMap damages={booking.pickup_handover.damages} readOnly variant="existing" vehicleType={booking.car?.vehicle_type} />
+                                                        </div>
+                                                    )}
+                                                </>
+                                            ) : (
+                                                <p className="text-sm text-surface-400">Not recorded</p>
+                                            )}
+                                        </div>
+                                        <div className="rounded-2xl border border-surface-100/80 bg-surface-50/50 p-4">
+                                            <p className="text-[10px] font-semibold uppercase tracking-widest text-surface-400 mb-3">At Return</p>
+                                            {booking.return_handover ? (
+                                                <>
+                                                    <FuelRow label="Fuel Level" value={booking.return_handover.fuel_level != null ? `${booking.return_handover.fuel_level}/8` : '—'} />
+                                                    <FuelRow label="Odometer" value={formatOdometer(booking.return_handover.odometer)} />
+                                                    {booking.return_handover.notes && <FuelRow label="Notes" value={booking.return_handover.notes} />}
+                                                    {booking.return_handover.damages && booking.return_handover.damages.length > 0 && (
+                                                        <div className="pt-3 border-t border-surface-100/60 mt-3">
+                                                            <p className="text-[10px] font-semibold uppercase tracking-widest text-surface-400 mb-2">
+                                                                Damage ({booking.return_handover.damages.length})
+                                                            </p>
+                                                            <VehicleDamageMap damages={booking.return_handover.damages} readOnly variant="new" vehicleType={booking.car?.vehicle_type} />
+                                                        </div>
+                                                    )}
+                                                </>
+                                            ) : (
+                                                <p className="text-sm text-surface-400">Not recorded</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         {/* Right column (1/3) */}
@@ -390,6 +463,39 @@ export default function GuestShow({ booking }: GuestShowProps) {
                                                 </div>
                                                 );
                                             })}
+                                        </div>
+                                    )}
+
+                                    {booking.handover_charges && booking.handover_charges.total > 0 && (
+                                        <div className="border-t border-dashed border-surface-200/60 pt-2.5 space-y-1.5">
+                                            <p className="text-[11px] font-semibold uppercase tracking-widest text-surface-400 mb-1.5">Additional Charges</p>
+                                            {booking.handover_charges.fuel_refuel > 0 && (
+                                                <div className="flex items-center justify-between text-sm">
+                                                    <span className="text-surface-400">Fuel refueling</span>
+                                                    <span className="font-medium text-surface-600">+{formatPrice(booking.handover_charges.fuel_refuel)}</span>
+                                                </div>
+                                            )}
+                                            {booking.handover_charges.excess_mileage > 0 && (
+                                                <div className="flex items-center justify-between text-sm">
+                                                    <span className="text-surface-400">Excess mileage</span>
+                                                    <span className="font-medium text-surface-600">+{formatPrice(booking.handover_charges.excess_mileage)}</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {(booking.extra_charges ?? []).length > 0 && (
+                                        <div className="border-t border-dashed border-surface-200/60 pt-2.5 space-y-1.5">
+                                            <p className="text-[11px] font-semibold uppercase tracking-widest text-surface-400 mb-1.5">Charged at Return</p>
+                                            {(booking.extra_charges ?? []).map((c) => (
+                                                <div key={c.id} className="flex items-center justify-between text-sm">
+                                                    <span className="text-surface-400">
+                                                        {c.name}
+                                                        {Number(c.tax_amount) > 0 && <span className="text-[10px] text-surface-400/70"> incl. tax</span>}
+                                                    </span>
+                                                    <span className="font-medium text-surface-600">{c.operator === '-' ? '–' : '+'}{formatPrice(Number(c.amount) + Number(c.tax_amount))}</span>
+                                                </div>
+                                            ))}
                                         </div>
                                     )}
 

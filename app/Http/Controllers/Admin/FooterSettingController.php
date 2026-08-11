@@ -7,27 +7,14 @@ use App\Models\FooterSetting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
-use Inertia\Inertia;
 
 class FooterSettingController extends Controller
 {
-    public function index()
-    {
-        $settings = FooterSetting::first();
-
-        if (!$settings) {
-            $settings = FooterSetting::create();
-        }
-
-        return Inertia::render('Admin/FooterSettings/Index', [
-            'settings' => $settings,
-        ]);
-    }
-
     public function update(Request $request)
     {
         $validated = $request->validate([
             'brand_name' => 'required|string|max:255',
+            'brand_tagline' => 'nullable|string|max:255',
             'brand_description' => 'nullable|string',
             'logo' => 'nullable|image|max:2048',
             'newsletter_heading' => 'required|string|max:255',
@@ -63,12 +50,17 @@ class FooterSettingController extends Controller
                 Storage::disk('public')->delete($settings->logo_path);
             }
             $validated['logo_path'] = $request->file('logo')->store('footer', 'public');
+        } elseif ($request->boolean('remove_logo')) {
+            if ($settings->logo_path && $settings->logo_path !== '/img/company_logo/company-logos-01.png') {
+                Storage::disk('public')->delete($settings->logo_path);
+            }
+            $validated['logo_path'] = '/img/company_logo/company-logos-01.png';
         }
 
         $settings->update($validated);
 
         Cache::forget('shared.footerSettings');
 
-        return redirect()->route('admin.footer-settings')->with('success', 'Footer settings updated successfully.');
+        return redirect()->route('admin.hero-settings', ['page' => 'brand'])->with('success', 'Brand settings updated successfully.');
     }
 }

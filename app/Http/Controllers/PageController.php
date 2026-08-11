@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Booking;
 use App\Models\Car;
+use App\Models\FleetPageSetting;
+use App\Models\LegalDocument;
 use App\Models\LocationsPageSetting;
 use App\Models\ReservationSetting;
 use App\Models\VehicleLocation;
@@ -17,18 +19,24 @@ class PageController extends Controller
         $today = now()->startOfDay();
         $end = now()->addDays(60)->endOfDay();
 
-        $cars = Car::withReviewStats()->paginate(12);
-        $cars->load(['bookings' => fn($q) => $q
+        $cars = Car::available()->withReviewStats()->paginate(12);
+        $cars->load(['bookings' => fn ($q) => $q
             ->whereIn('status', ['confirmed', 'active'])
             ->where('end_date', '>=', $today)
-            ->where('start_date', '<=', $end)
+            ->where('start_date', '<=', $end),
         ]);
         $cars->getCollection()->transform(function ($car) {
             $car->booked_dates = $car->bookedDates(60);
+
             return $car;
         });
 
-        return Inertia::render('Fleet', ['cars' => $cars]);
+        $fleetSettings = FleetPageSetting::first();
+
+        return Inertia::render('Fleet', [
+            'cars' => $cars,
+            'fleetSettings' => $fleetSettings,
+        ]);
     }
 
     public function locations()
@@ -74,16 +82,14 @@ class PageController extends Controller
             'return_date', 'return_time', 'return_location',
         ]);
 
-        $reservationSettings = ReservationSetting::first();
-
         $data = [
             'carId' => $carId,
             'car' => $car,
             'booked_dates' => $car->bookedDates(60),
-            'reservationSettings' => $reservationSettings,
+            'legalDocument' => $this->getDocument('terms-and-conditions'),
         ];
 
-        if (!empty($rental['pickup_date'])) {
+        if (! empty($rental['pickup_date'])) {
             $data['rental'] = $rental;
         }
 
@@ -92,22 +98,35 @@ class PageController extends Controller
 
     public function privacyPolicy()
     {
-        return Inertia::render('Legal/PrivacyPolicy');
+        return Inertia::render('Legal/PrivacyPolicy', [
+            'document' => $this->getDocument('privacy-policy'),
+        ]);
     }
 
     public function termsOfService()
     {
-        return Inertia::render('Legal/TermsOfService');
+        return Inertia::render('Legal/TermsOfService', [
+            'document' => $this->getDocument('terms-of-service'),
+        ]);
     }
 
     public function cookiePolicy()
     {
-        return Inertia::render('Legal/CookiePolicy');
+        return Inertia::render('Legal/CookiePolicy', [
+            'document' => $this->getDocument('cookie-policy'),
+        ]);
     }
 
     public function termsAndConditions()
     {
-        return Inertia::render('Legal/TermsAndConditions');
+        return Inertia::render('Legal/TermsAndConditions', [
+            'document' => $this->getDocument('terms-and-conditions'),
+        ]);
+    }
+
+    protected function getDocument(string $slug): ?LegalDocument
+    {
+        return LegalDocument::where('slug', $slug)->where('is_active', true)->first();
     }
 
     public function dashboard()

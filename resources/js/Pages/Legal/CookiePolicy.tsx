@@ -2,7 +2,18 @@ import { useEffect } from 'react';
 import GuestLayout from '@/Layouts/GuestLayout';
 import { Head, Link } from '@inertiajs/react';
 
-export default function CookiePolicy() {
+interface LegalDocument {
+    id: number;
+    slug: string;
+    title: string;
+    subtitle: string | null;
+    content: string;
+    type: 'website' | 'invoice';
+    version: number;
+    updated_at: string | null;
+}
+
+export default function CookiePolicy({ document: legalDocument }: { document?: LegalDocument | null }) {
     useEffect(() => {
         const observer = new IntersectionObserver(
             (entries) => {
@@ -19,9 +30,13 @@ export default function CookiePolicy() {
         return () => observer.disconnect();
     }, []);
 
+    const title = legalDocument?.title || 'Cookie Policy';
+    const subtitle = legalDocument?.subtitle || 'How we use cookies and similar technologies on our website.';
+    const lastUpdated = legalDocument?.updated_at;
+
     return (
         <GuestLayout>
-            <Head title="Cookie Policy" />
+            <Head title={title} />
 
             <section className="relative min-h-[40vh] flex items-center justify-center overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
                 <div className="absolute inset-0">
@@ -33,97 +48,22 @@ export default function CookiePolicy() {
                         <svg className="w-4 h-4 text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                         </svg>
-                        <span className="text-sm font-medium text-slate-300">Last Updated: July 29, 2026</span>
+                        <span className="text-sm font-medium text-slate-300">Last Updated: {lastUpdated ? new Date(lastUpdated).toLocaleDateString() : 'N/A'}</span>
                     </div>
                     <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white tracking-tight">
-                        Cookie{' '}
-                        <span className="bg-gradient-to-r from-brand-400 via-amber-400 to-brand-400 bg-clip-text text-transparent">
-                            Policy
-                        </span>
+                        {title}
                     </h1>
                     <p className="text-lg text-slate-400 max-w-2xl mx-auto mt-4">
-                        How we use cookies and similar technologies on our website.
+                        {subtitle}
                     </p>
                 </div>
             </section>
 
             <section className="py-16 sm:py-20 bg-white">
                 <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div data-animate className="opacity-0 translate-y-12 transition-all duration-700 space-y-8 text-slate-600 leading-relaxed">
-                        <p>
-                            West Car Rentals ("we," "our," or "us") uses cookies and similar tracking technologies on our website. This Cookie Policy explains what cookies are, how we use them, and your choices regarding cookies.
-                        </p>
-
-                        <div>
-                            <h2 className="text-2xl font-bold text-slate-900 mb-4">1. What Are Cookies?</h2>
-                            <p>
-                                Cookies are small text files that are placed on your device (computer, tablet, or mobile) when you visit a website. They help the website remember your preferences, enhance your browsing experience, and provide useful information to website operators.
-                            </p>
-                        </div>
-
-                        <div>
-                            <h2 className="text-2xl font-bold text-slate-900 mb-4">2. Types of Cookies We Use</h2>
-
-                            <h3 className="text-lg font-semibold text-slate-900 mb-2">Essential Cookies</h3>
-                            <p className="mb-4">
-                                These cookies are necessary for the website to function properly. They enable core functionality such as security, network management, and account access. You cannot opt out of these cookies.
-                            </p>
-
-                            <h3 className="text-lg font-semibold text-slate-900 mb-2">Performance Cookies</h3>
-                            <p className="mb-4">
-                                These cookies collect information about how visitors use our website, such as which pages are visited most often. This data helps us improve the performance and design of our site.
-                            </p>
-
-                            <h3 className="text-lg font-semibold text-slate-900 mb-2">Functional Cookies</h3>
-                            <p className="mb-4">
-                                These cookies allow the website to remember choices you make (such as your language preference or location) and provide enhanced, personalized features.
-                            </p>
-
-                            <h3 className="text-lg font-semibold text-slate-900 mb-2">Targeting/Advertising Cookies</h3>
-                            <p>
-                                These cookies are used to deliver advertisements more relevant to you and your interests. They may be set through our site by advertising partners to build a profile of your interests.
-                            </p>
-                        </div>
-
-                        <div>
-                            <h2 className="text-2xl font-bold text-slate-900 mb-4">3. Third-Party Cookies</h2>
-                            <p>
-                                Some cookies are placed by third-party services that appear on our pages. These third parties may include analytics providers (such as Google Analytics) and advertising networks. We do not control these cookies, and you should check the third-party websites for more information about their cookie practices.
-                            </p>
-                        </div>
-
-                        <div>
-                            <h2 className="text-2xl font-bold text-slate-900 mb-4">4. How to Manage Cookies</h2>
-                            <p className="mb-4">
-                                Most web browsers allow you to control cookies through their settings. You can typically:
-                            </p>
-                            <ul className="list-disc pl-6 space-y-2">
-                                <li>View cookies stored on your device and delete them individually</li>
-                                <li>Block all cookies or third-party cookies</li>
-                                <li>Set your browser to notify you when a cookie is being set</li>
-                                <li>Use private or incognito browsing modes</li>
-                            </ul>
-                            <p className="mt-4">
-                                Please note that disabling certain cookies may affect the functionality and performance of our website.
-                            </p>
-                        </div>
-
-                        <div>
-                            <h2 className="text-2xl font-bold text-slate-900 mb-4">5. Changes to This Policy</h2>
-                            <p>
-                                We may update this Cookie Policy from time to time. Any changes will be posted on this page with an updated revision date. We encourage you to review this policy periodically.
-                            </p>
-                        </div>
-
-                        <div>
-                            <h2 className="text-2xl font-bold text-slate-900 mb-4">6. Contact Us</h2>
-                            <p>
-                                If you have any questions about our use of cookies, please contact us at{' '}
-                                <a href="mailto:privacy@westcarsales.com" className="text-brand-600 hover:text-brand-700 underline">privacy@westcarsales.com</a>{' '}
-                                or call +1 (800) 555-WEST.
-                            </p>
-                        </div>
-                    </div>
+                    <div data-animate className="opacity-0 translate-y-12 transition-all duration-700 space-y-8 text-slate-600 leading-relaxed [&_h2]:text-2xl [&_h2]:font-bold [&_h2]:text-slate-900 [&_h2]:mb-4 [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:text-slate-900 [&_h3]:mb-2 [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:space-y-2 [&_a]:text-brand-600 [&_a]:hover:text-brand-700 [&_a]:underline"
+                        dangerouslySetInnerHTML={{ __html: legalDocument?.content || '<p>This document is not available yet.</p>' }}
+                    />
                 </div>
             </section>
 

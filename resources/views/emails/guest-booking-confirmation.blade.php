@@ -1,5 +1,5 @@
 <x-mail::message>
-<img src="{{ $message->embed(public_path('img/company_logo/company-logos-01.png')) }}" alt="{{ config('app.name') }}" style="max-width: 160px; display: block; margin: 0 auto 24px;">
+<img src="{{ $message->embed($footerSettings?->logo_disk_path ?? public_path('img/company_logo/company-logos-01.png')) }}" alt="{{ config('app.name') }}" style="max-width: 160px; display: block; margin: 0 auto 24px;">
 
 @if ($booking->status === 'pending')
 # Reservation Received

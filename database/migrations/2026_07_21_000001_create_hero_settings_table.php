@@ -14,7 +14,7 @@ return new class extends Migration
             $table->string('headline', 255)->default('Find Your');
             $table->string('headline_highlight', 255)->default('Perfect Ride');
             $table->string('tagline', 255)->nullable()->default('Drive Your Dreams, One Mile at a Time');
-            $table->text('description')->nullable()->default('Browse our fleet of premium vehicles and hit the road with confidence');
+            $table->text('description')->nullable();
             $table->string('image_path', 255)->nullable();
             $table->boolean('is_active')->default(true);
             $table->timestamps();

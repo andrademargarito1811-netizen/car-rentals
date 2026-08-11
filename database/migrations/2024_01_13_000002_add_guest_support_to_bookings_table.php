@@ -9,12 +9,16 @@ return new class extends Migration
 {
     public function up(): void
     {
-        if (!Schema::hasTable('bookings')) {
+        if (! Schema::hasTable('bookings')) {
             return;
         }
 
-        if (!Schema::hasColumn('bookings', 'guest_id')) {
-            DB::statement('ALTER TABLE bookings ALTER COLUMN user_id bigint NULL');
+        if (! Schema::hasColumn('bookings', 'guest_id')) {
+            if (DB::getDriverName() === 'sqlsrv') {
+                DB::statement('ALTER TABLE bookings ALTER COLUMN user_id bigint NULL');
+            } else {
+                DB::statement('ALTER TABLE bookings MODIFY user_id BIGINT NULL');
+            }
 
             Schema::table('bookings', function (Blueprint $table) {
                 $table->unsignedBigInteger('guest_id')->nullable()->after('user_id');
@@ -46,6 +50,10 @@ return new class extends Migration
             $table->dropColumn(['guest_id', 'pickup_time', 'return_time', 'pickup_location_id', 'return_location_id']);
         });
 
-        DB::statement('ALTER TABLE bookings ALTER COLUMN user_id bigint NOT NULL');
+        if (DB::getDriverName() === 'sqlsrv') {
+            DB::statement('ALTER TABLE bookings ALTER COLUMN user_id bigint NOT NULL');
+        } else {
+            DB::statement('ALTER TABLE bookings MODIFY user_id BIGINT NOT NULL');
+        }
     }
 };

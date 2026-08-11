@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Fragment, useState, useEffect } from 'react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, useForm } from '@inertiajs/react';
 import { useRoute } from 'ziggy-js';
@@ -16,27 +16,22 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/Components/ui/card';
 import { Separator } from '@/Components/ui/separator';
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-  SheetTrigger,
-  SheetClose,
-} from '@/Components/ui/sheet';
-import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/Components/ui/popover';
+import VehicleDamageMap from '@/Components/VehicleDamageMap';
+import PrintDamageSummary from '@/Components/car3d/PrintDamageSummary';
+import { FUEL_MAX_BARS } from '@/Components/FuelGaugeInput';
 import { toast } from 'sonner';
 import {
   Mail,
   Phone,
   Calendar,
+  Check,
+  CheckCircle2,
   Clipboard,
   Copy,
-  Check,
   ArrowLeft,
   Printer,
   Clock,
@@ -54,45 +49,31 @@ import {
   FileText,
   PenLine,
   BadgeCheck,
-  DollarSign,
+  XCircle,
+  Building2,
 } from 'lucide-react';
+import CheckinVehicleSheet from './CheckinVehicleSheet';
+import RecordPaymentSheet from './RecordPaymentSheet';
+import EditPaymentSheet from './EditPaymentSheet';
+import { PaymentItem, formatPrice, sortPaymentsNewest } from './PaymentItem';
+import type { AdminBooking, BookingPayment } from './types';
 
 interface AdminBookingsShowProps {
-    booking: {
-        id: number;
-        reference_code: string | null;
-        start_date: string;
-        end_date: string;
-        pickup_time: string | null;
-        return_time: string | null;
-        total_amount: number;
-        status: string;
-        notes: string | null;
-        user: { id: number; name: string; email: string; phone: string | null; address: string | null; created_at: string } | null;
-        guest: { guest_id: number; title: string | null; first_name: string; last_name: string; email: string; phone: string | null; address: string | null; address2: string | null; country: string | null; state: string | null; city: string | null; postal_code: string | null; driver_age: number | null; flight_no: string | null } | null;
-        car: {
-            id: number;
-            brand: string;
-            model: string;
-            year: number;
-            license_plate: string;
-            daily_rate: number;
-            color: string | null;
-            transmission: string;
-            fuel_type: string;
-            seats: number | null;
-            vehicle_doors: number | null;
-            image_path: string | null;
-            air_conditioned: boolean;
-            engine: string | null;
-            baggage_capacity: number | null;
-            description: string | null;
-            vin: string | null;
-        };
-        payment: { id: string; type: string; amount: number; payment_method: string; payment_status: string; transaction_id: string | null } | null;
-        payments: { id: string; type: string; amount: number; payment_method: string; payment_status: string; transaction_id: string | null; created_at: string }[];
-        created_at: string;
-    };
+    booking: AdminBooking;
+    extraCharges?: ExtraChargeCatalogItem[];
+}
+
+interface ExtraChargeCatalogItem {
+    id: number;
+    name: string;
+    type: string;
+    calculation: string;
+    value_in: string;
+    operator: string;
+    rate: string;
+    taxable: boolean;
+    apply_always: boolean;
+    is_active: boolean;
 }
 
 function getCustomerName(booking: AdminBookingsShowProps['booking']): string {
@@ -136,20 +117,17 @@ function formatRelativeDate(date: string): string {
     const d = new Date(date);
     const diff = now.getTime() - d.getTime();
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    if (days === 0) return 'Today';
+    if (days <= 0) return 'Today';
     if (days === 1) return 'Yesterday';
     if (days < 7) return `${days} days ago`;
     return formatDate(date);
 }
 
-function formatPrice(price: number): string {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(price);
-}
-
 function getDaysDifference(start: string, end: string): number {
     const startDate = new Date(start);
     const endDate = new Date(end);
-    return Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+    const msPerDay = 1000 * 60 * 60 * 24;
+    return Math.max(1, Math.round((Date.UTC(endDate.getFullYear(), endDate.getMonth(), endDate.getDate()) - Date.UTC(startDate.getFullYear(), startDate.getMonth(), startDate.getDate())) / msPerDay));
 }
 
 function statusOptions(): { value: string; label: string }[] {
@@ -161,6 +139,13 @@ function statusOptions(): { value: string; label: string }[] {
         { value: 'cancelled', label: 'Cancelled' },
     ];
 }
+
+const BOOKING_STATUS_FLOW = [
+    { value: 'pending', label: 'Pending', icon: Clipboard },
+    { value: 'confirmed', label: 'Confirmed', icon: BadgeCheck },
+    { value: 'active', label: 'Active', icon: Car },
+    { value: 'completed', label: 'Completed', icon: CheckCircle2 },
+];
 
 function carColorClass(color: string | null) {
     if (!color) return 'bg-gradient-to-br from-brand-400 to-brand-600';
@@ -182,20 +167,46 @@ function carColorClass(color: string | null) {
     return map[color.toLowerCase()] || 'bg-gradient-to-br from-brand-400 to-brand-600';
 }
 
-function paymentTypeLabel(type: string): string {
-    const labels: Record<string, string> = { downpayment: 'Down Payment', remaining: 'Remaining', full_payment: 'Full Payment' };
-    return labels[type] ?? type;
+function formatOdometer(value: number | null | undefined): string {
+    return value == null ? '—' : `${Math.round(value).toLocaleString()}`;
 }
 
-export default function AdminBookingsShow({ booking }: AdminBookingsShowProps) {
+function FuelBar({ level, tone }: { level: number | null | undefined; tone: 'emerald' | 'amber' }) {
+    const bars = Math.max(0, Math.min(FUEL_MAX_BARS, Math.round(Number(level ?? 0))));
+    const color = tone === 'emerald' ? 'bg-emerald-500' : 'bg-amber-400';
+    return (
+        <div className="flex items-center gap-2">
+            <div className="flex flex-1 items-center gap-1">
+                {Array.from({ length: FUEL_MAX_BARS }, (_, i) => (
+                    <span
+                        key={i}
+                        className={`h-1.5 flex-1 rounded-full ${i < bars ? color : 'bg-muted'}`}
+                    />
+                ))}
+            </div>
+            <span className="text-xs font-bold text-foreground tabular-nums w-12 text-right">{bars}/{FUEL_MAX_BARS}</span>
+        </div>
+    );
+}
+
+export default function AdminBookingsShow({ booking, extraCharges = [] }: AdminBookingsShowProps) {
     const route = useRoute();
-    const form = useForm({ status: booking.status, downpayment_amount: '', payment_method: 'Manual', amount: '' });
-    const paymentForm = useForm({ amount: '', payment_method: 'cash', transaction_id: '', type: 'remaining' });
+    const form = useForm({
+        status: booking.status,
+        downpayment_amount: '',
+        payment_method: 'Cash',
+    });
 
     const [showPaymentSheet, setShowPaymentSheet] = useState(false);
     const [statusOpen, setStatusOpen] = useState(false);
-    const [editingPayment, setEditingPayment] = useState<typeof booking.payments[0] | null>(null);
-    const editPaymentForm = useForm({ amount: '', payment_method: 'cash', transaction_id: '' });
+    const [editingPayment, setEditingPayment] = useState<BookingPayment | null>(null);
+    const [carImageError, setCarImageError] = useState(false);
+    const [confirmCancel, setConfirmCancel] = useState(false);
+    const popoverStatusOptions = statusOptions().filter(o => !['active', 'completed'].includes(o.value));
+
+    useEffect(() => {
+        setCarImageError(false);
+    }, [booking.id]);
 
 
     function copyBookingId() {
@@ -205,49 +216,55 @@ export default function AdminBookingsShow({ booking }: AdminBookingsShowProps) {
 
     function updateStatus(e: React.FormEvent) {
         e.preventDefault();
+        const newStatus = form.data.status;
+        if (newStatus === 'cancelled' && !confirmCancel) {
+            setConfirmCancel(true);
+            return;
+        }
         form.patch(route('admin.bookings.status', booking.id), {
             onSuccess: () => {
                 form.reset();
                 setStatusOpen(false);
-                toast.success('Status updated', { description: `Booking is now ${statusOptions().find(o => o.value === form.data.status)?.label ?? form.data.status}` });
+                setConfirmCancel(false);
+                toast.success('Status updated', { description: `Booking is now ${statusOptions().find(o => o.value === newStatus)?.label ?? newStatus}` });
             },
         });
     }
 
-    function recordPayment(e: React.FormEvent) {
-        e.preventDefault();
-        paymentForm.post(route('admin.bookings.payments.store', booking.id), {
-            preserveScroll: true,
-            onSuccess: () => {
-                paymentForm.reset();
-                setShowPaymentSheet(false);
-                toast.success('Payment recorded', { description: `${paymentTypeLabel(paymentForm.data.type)} of ${formatPrice(Number(paymentForm.data.amount) || 0)}` });
-            },
-        });
+    function handleStatusOpenChange(open: boolean) {
+        setStatusOpen(open);
+        if (!open) setConfirmCancel(false);
     }
 
-    function updatePayment(e: React.FormEvent) {
-        e.preventDefault();
-        if (!editingPayment) return;
-        editPaymentForm.patch(route('admin.bookings.payments.update', [booking.id, editingPayment.id]), {
-            preserveScroll: true,
-            onSuccess: () => {
-                editPaymentForm.reset();
-                setEditingPayment(null);
-                toast.success('Payment updated');
-            },
-        });
+    function openEditPayment(p: BookingPayment, closeSheet = false) {
+        setEditingPayment(p);
+        if (closeSheet) setShowPaymentSheet(false);
     }
 
     const totalAmount = Number(booking.total_amount) || 0;
     const totalPaid = (booking.payments ?? []).filter(p => p.payment_status === 'completed').reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
     const remainingBalance = totalAmount - totalPaid;
+    const hasRefund = (booking.payments ?? []).some(p => p.payment_status === 'completed' && p.type === 'refund');
+    const isFullyRefunded = hasRefund && totalPaid <= 0;
+
+    const pickup = booking.pickup_handover;
+    const days = getDaysDifference(booking.start_date, booking.end_date);
+
+    const rentalSubtotal = Number(booking.car?.daily_rate ?? 0) * days;
+    const handoverChargesTotal = Number(booking.handover_charges?.total ?? 0);
+    const extraChargesTotal = (booking.extra_charges ?? []).reduce((sum, c) => {
+        const amt = Number(c.amount) + Number(c.tax_amount);
+        return sum + (c.operator === '-' ? -amt : amt);
+    }, 0);
+    const couponDiscount = Number(booking.coupon_usage?.discount_amount ?? 0);
+    const otherCharges = Math.max(0, totalAmount - rentalSubtotal - handoverChargesTotal - extraChargesTotal - couponDiscount);
+    const paymentPercent = totalAmount > 0 ? Math.min(100, Math.round((totalPaid / totalAmount) * 100)) : 0;
+    const statusIndex = BOOKING_STATUS_FLOW.findIndex(s => s.value === booking.status);
 
     const customerName = getCustomerName(booking);
     const customerEmail = getCustomerEmail(booking);
     const customerPhone = getCustomerPhone(booking);
     const initials = getInitials(customerName);
-    const days = getDaysDifference(booking.start_date, booking.end_date);
     const start = new Date(booking.start_date);
     const end = new Date(booking.end_date);
 
@@ -260,8 +277,8 @@ export default function AdminBookingsShow({ booking }: AdminBookingsShowProps) {
                     <div className="border-b border-border bg-gradient-to-b from-muted/30 to-background">
                         <div className="relative max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
                             <nav className="flex items-center gap-2 text-sm text-muted-foreground mb-3">
-                                <Link href={route('admin.bookings.index')} className="hover:text-foreground transition-colors">
-                                    Bookings
+                                <Link href={route('admin.reservations.index')} className="hover:text-foreground transition-colors">
+                                    Reservations
                                 </Link>
                                 <ChevronRight className="w-3.5 h-3.5" />
                                 <span className="text-foreground font-medium truncate">
@@ -311,6 +328,9 @@ export default function AdminBookingsShow({ booking }: AdminBookingsShowProps) {
                                     <Badge variant={booking.status as 'pending' | 'confirmed' | 'active' | 'completed' | 'cancelled'}>
                                         {statusOptions().find(o => o.value === booking.status)?.label ?? booking.status}
                                     </Badge>
+                                    {isFullyRefunded && (
+                                        <Badge variant="payment_refunded">Fully Refunded</Badge>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -318,16 +338,80 @@ export default function AdminBookingsShow({ booking }: AdminBookingsShowProps) {
                 }
             >
                 <div className="px-4 sm:px-6 lg:px-8 py-6 space-y-6 max-w-screen-2xl mx-auto">
+                    {/* Booking Lifecycle */}
+                    <Card>
+                        <CardContent className="p-4 sm:p-5">
+                            {booking.status === 'cancelled' ? (
+                                <div className="flex items-center gap-3">
+                                    <div className="w-9 h-9 rounded-lg bg-destructive/10 text-destructive flex items-center justify-center shrink-0">
+                                        <XCircle className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <p className="font-semibold text-foreground">Booking Cancelled</p>
+                                        <p className="text-xs text-muted-foreground">
+                                            This booking is cancelled and no longer active.
+                                        </p>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div>
+                                    <div className="flex items-center">
+                                        {BOOKING_STATUS_FLOW.map((step, i) => {
+                                            const isComplete = i < statusIndex;
+                                            const isCurrent = i === statusIndex;
+                                            return (
+                                                <Fragment key={step.value}>
+                                                    <div className="w-16 sm:w-24 flex justify-center">
+                                                        <div
+                                                            className={`flex items-center justify-center w-8 h-8 rounded-full border-2 transition-colors ${
+                                                                isComplete
+                                                                    ? 'bg-primary border-primary text-primary-foreground'
+                                                                    : isCurrent
+                                                                        ? 'bg-primary/10 border-primary text-primary ring-4 ring-primary/10'
+                                                                        : 'bg-muted border-border text-muted-foreground'
+                                                            }`}
+                                                        >
+                                                            {isComplete ? (
+                                                                <Check className="w-4 h-4" />
+                                                            ) : (
+                                                                <step.icon className="w-4 h-4" />
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    {i < BOOKING_STATUS_FLOW.length - 1 && (
+                                                        <div
+                                                            className={`flex-1 h-0.5 rounded-full ${i < statusIndex ? 'bg-primary' : 'bg-border'}`}
+                                                        />
+                                                    )}
+                                                </Fragment>
+                                            );
+                                        })}
+                                    </div>
+                                    <div className="flex items-center mt-2">
+                                        {BOOKING_STATUS_FLOW.map((step, i) => (
+                                            <Fragment key={step.value}>
+                                                <div
+                                                    className={`w-16 sm:w-24 text-center text-[10px] sm:text-xs ${
+                                                        i === statusIndex
+                                                            ? 'font-semibold text-foreground'
+                                                            : i < statusIndex
+                                                                ? 'font-medium text-foreground'
+                                                                : 'font-medium text-muted-foreground'
+                                                    }`}
+                                                >
+                                                    {step.label}
+                                                </div>
+                                                {i < BOOKING_STATUS_FLOW.length - 1 && <div className="flex-1" />}
+                                            </Fragment>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+
                     {/* Summary Stats */}
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                        <Card>
-                            <CardContent className="p-4">
-                                <p className="text-xs text-muted-foreground font-medium mb-1">Status</p>
-                                <Badge variant={booking.status as 'pending' | 'confirmed' | 'active' | 'completed' | 'cancelled'}>
-                                    {statusOptions().find(o => o.value === booking.status)?.label ?? booking.status}
-                                </Badge>
-                            </CardContent>
-                        </Card>
+                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
                         <Card>
                             <CardContent className="p-4">
                                 <p className="text-xs text-muted-foreground font-medium mb-1">Duration</p>
@@ -411,6 +495,12 @@ export default function AdminBookingsShow({ booking }: AdminBookingsShowProps) {
                                                 <span>Flight: {booking.guest.flight_no}</span>
                                             </div>
                                         )}
+                                        {booking.guest?.company_name && (
+                                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                                <Building2 className="w-3 h-3 shrink-0" />
+                                                <span>Company: {booking.guest.company_name}</span>
+                                            </div>
+                                        )}
                                     </CardContent>
 
                                     <Separator />
@@ -418,14 +508,41 @@ export default function AdminBookingsShow({ booking }: AdminBookingsShowProps) {
                                     {/* Booking Summary */}
                                     <CardContent className="p-5">
                                         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Booking Summary</p>
-                                        <div className="flex items-center justify-between mb-1">
-                                            <span className="text-sm text-muted-foreground">Total Amount</span>
-                                            <span className="text-lg font-bold text-foreground">{formatPrice(booking.total_amount)}</span>
+                                        <div className="space-y-1.5">
+                                            <div className="flex items-center justify-between text-sm">
+                                                <span className="text-muted-foreground">Rental &middot; {days} day{days !== 1 ? 's' : ''}</span>
+                                                <span className="font-medium text-foreground">{formatPrice(rentalSubtotal)}</span>
+                                            </div>
+                                            {handoverChargesTotal > 0 && (
+                                                <div className="flex items-center justify-between text-sm">
+                                                    <span className="text-muted-foreground">Handover charges</span>
+                                                    <span className="font-medium text-foreground">{formatPrice(handoverChargesTotal)}</span>
+                                                </div>
+                                            )}
+                                            {(booking.extra_charges ?? []).map((c) => (
+                                                <div key={c.id} className="flex items-center justify-between text-sm">
+                                                    <span className="text-muted-foreground">{c.name}</span>
+                                                    <span className="font-medium text-foreground">{c.operator === '-' ? '-' : ''}{formatPrice(Number(c.amount) + Number(c.tax_amount))}</span>
+                                                </div>
+                                            ))}
+                                            {booking.coupon_usage && couponDiscount > 0 && (
+                                                <div className="flex items-center justify-between text-sm">
+                                                    <span className="text-emerald-600 font-medium">Coupon ({booking.coupon_usage.code})</span>
+                                                    <span className="text-emerald-600 font-medium">-{formatPrice(couponDiscount)}</span>
+                                                </div>
+                                            )}
+                                            {otherCharges > 0 && (
+                                                <div className="flex items-center justify-between text-sm">
+                                                    <span className="text-muted-foreground">Taxes &amp; fees</span>
+                                                    <span className="font-medium text-foreground">{formatPrice(otherCharges)}</span>
+                                                </div>
+                                            )}
+                                            <div className="flex items-center justify-between border-t pt-1.5">
+                                                <span className="text-sm font-semibold text-foreground">Total</span>
+                                                <span className="text-base font-bold text-foreground">{formatPrice(totalAmount)}</span>
+                                            </div>
                                         </div>
-                                        <p className="text-xs text-muted-foreground">
-                                            {days} day{days !== 1 ? 's' : ''} &times; {formatPrice(booking.car.daily_rate)}
-                                        </p>
-                                        <p className="text-xs text-muted-foreground mt-1">
+                                        <p className="text-xs text-muted-foreground mt-2">
                                             {formatDate(booking.start_date)} {formatTime(booking.pickup_time)} &mdash; {formatDate(booking.end_date)} {formatTime(booking.return_time)}
                                         </p>
                                     </CardContent>
@@ -435,13 +552,15 @@ export default function AdminBookingsShow({ booking }: AdminBookingsShowProps) {
                                     {/* Payment Summary */}
                                     <CardContent className="p-5">
                                         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Payments</p>
-                                        <div className="flex items-center justify-between mb-2">
+                                        <div className="flex items-center justify-between mb-1.5">
                                             <span className="text-sm text-muted-foreground">Total Paid</span>
                                             <span className="text-sm font-bold text-foreground">{formatPrice(totalPaid)}</span>
                                         </div>
-                                        <div className="flex items-center justify-between mb-3">
+                                        <div className="flex items-center justify-between mb-2">
                                             <span className="text-sm text-muted-foreground">Remaining</span>
-                                            {remainingBalance > 0 ? (
+                                            {isFullyRefunded ? (
+                                                <Badge variant="payment_refunded" className="text-xs font-bold">Fully Refunded</Badge>
+                                            ) : remainingBalance > 0 ? (
                                                 <Badge variant="destructive" className="text-xs font-bold">
                                                     {formatPrice(remainingBalance)}
                                                 </Badge>
@@ -451,35 +570,23 @@ export default function AdminBookingsShow({ booking }: AdminBookingsShowProps) {
                                                 </span>
                                             )}
                                         </div>
+                                        <div className="mb-3">
+                                            <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                                                <div
+                                                    className={`h-full rounded-full transition-all ${paymentPercent >= 100 ? 'bg-emerald-500' : 'bg-primary'}`}
+                                                    style={{ width: `${paymentPercent}%` }}
+                                                />
+                                            </div>
+                                            <p className="text-[10px] text-muted-foreground mt-1">{paymentPercent}% paid</p>
+                                        </div>
                                         {booking.payments && booking.payments.length > 0 && (
                                             <div className="space-y-1.5 max-h-28 overflow-y-auto">
-                                                {[...booking.payments].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 3).map(p => (
-                                                    <div key={p.id} className="flex items-center justify-between text-xs">
-                                                        <div className="flex items-center gap-1.5 min-w-0">
-                                                            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${p.payment_status === 'completed' ? 'bg-emerald-400' : 'bg-amber-400'}`} />
-                                                            <span className="text-muted-foreground truncate">{paymentTypeLabel(p.type)}</span>
-                                                        </div>
-                                                        <div className="flex items-center gap-1 shrink-0 ml-2">
-                                                            <span className="font-medium text-foreground">{formatPrice(p.amount)}</span>
-                                                            {remainingBalance > 0 && (
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => {
-                                                                        editPaymentForm.setData({
-                                                                            amount: String(p.amount),
-                                                                            payment_method: p.payment_method,
-                                                                            transaction_id: p.transaction_id ?? '',
-                                                                        });
-                                                                        setEditingPayment(p);
-                                                                    }}
-                                                                    className="text-muted-foreground/40 hover:text-foreground transition-colors"
-                                                                    title="Edit payment"
-                                                                >
-                                                                    <PenLine className="w-3 h-3" />
-                                                                </button>
-                                                            )}
-                                                        </div>
-                                                    </div>
+                                                {sortPaymentsNewest(booking.payments).slice(0, 3).map(p => (
+                                                    <PaymentItem
+                                                        key={p.id}
+                                                        payment={p}
+                                                        onEdit={remainingBalance > 0 || (p.type === 'refund' && !isFullyRefunded) ? () => openEditPayment(p) : undefined}
+                                                    />
                                                 ))}
                                                 {booking.payments.length > 3 && (
                                                     <p className="text-[10px] text-muted-foreground">+{booking.payments.length - 3} more</p>
@@ -492,247 +599,24 @@ export default function AdminBookingsShow({ booking }: AdminBookingsShowProps) {
 
                                     {/* Quick Actions */}
                                     <CardContent className="p-5 space-y-2">
-                                        {remainingBalance <= 0 ? (
-                                            <Button variant="outline" className="w-full" disabled>
-                                                <Check className="w-4 h-4 mr-1.5 text-emerald-500" />
-                                                Fully Paid
-                                            </Button>
-                                        ) : (
-                                            <Sheet open={showPaymentSheet} onOpenChange={open => {
-                                                setShowPaymentSheet(open);
-                                                if (!open) paymentForm.reset();
-                                            }}>
-                                                <SheetTrigger asChild>
-                                                    <Button variant="default" className="w-full">
-                                                        <DollarSign className="w-4 h-4 mr-1.5" />
-                                                        Record Payment
-                                                    </Button>
-                                                </SheetTrigger>
-                                                <SheetContent side="right" className="sm:max-w-md flex flex-col">
-                                                    <SheetHeader>
-                                                        <SheetTitle>Record Payment</SheetTitle>
-                                                        <SheetDescription>
-                                                            Total: {formatPrice(totalAmount)} &middot; Paid: {formatPrice(totalPaid)} &middot; Remaining: {formatPrice(remainingBalance)}
-                                                        </SheetDescription>
-                                                    </SheetHeader>
+                                        <RecordPaymentSheet
+                                            booking={booking}
+                                            open={showPaymentSheet}
+                                            onOpenChange={setShowPaymentSheet}
+                                            onEditPayment={p => openEditPayment(p, true)}
+                                        />
 
-                                                    {/* Progress bar */}
-                                                    <div className="mt-4">
-                                                        <div className="flex items-center justify-between text-xs text-muted-foreground mb-1.5">
-                                                            <span>Payment progress</span>
-                                                            <span>{totalAmount > 0 ? Math.round((totalPaid / totalAmount) * 100) : 0}%</span>
-                                                        </div>
-                                                        <div className="h-2 bg-muted rounded-full overflow-hidden">
-                                                            <div
-                                                                className="h-full bg-primary rounded-full transition-all duration-500"
-                                                                style={{ width: `${totalAmount > 0 ? Math.min((totalPaid / totalAmount) * 100, 100) : 0}%` }}
-                                                            />
-                                                        </div>
-                                                        <div className="flex justify-between text-xs text-muted-foreground mt-1">
-                                                            <span>Paid: {formatPrice(totalPaid)}</span>
-                                                            <span>Remaining: {formatPrice(remainingBalance)}</span>
-                                                        </div>
-                                                    </div>
+                                        {booking.status === 'confirmed' && (
+                                            <Link href={route('admin.bookings.checkout', booking.id)} className="block">
+                                                <Button variant="default" className="w-full">
+                                                    <Car className="w-4 h-4 mr-1.5" />
+                                                    Check-out Vehicle
+                                                </Button>
+                                            </Link>
+                                        )}
 
-                                                    <form
-                                                        onSubmit={recordPayment}
-                                                        onKeyDown={e => {
-                                                            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-                                                                e.preventDefault();
-                                                                recordPayment(e as any);
-                                                            }
-                                                        }}
-                                                        className="space-y-4 mt-5 flex-1 flex flex-col"
-                                                    >
-                                                        {/* Type selector */}
-                                                        <div>
-                                                            <Label className="text-sm font-medium mb-1.5 block">Type</Label>
-                                                            <div className="flex gap-1 p-1 bg-muted rounded-lg">
-                                                                {[
-                                                                    { value: 'downpayment', label: 'Down Payment' },
-                                                                    { value: 'remaining', label: 'Remaining' },
-                                                                    { value: 'full_payment', label: 'Full Payment' },
-                                                                ].map(opt => (
-                                                                    <button
-                                                                        key={opt.value}
-                                                                        type="button"
-                                                                        onClick={() => {
-                                                                            paymentForm.setData('type', opt.value);
-                                                                            if (opt.value === 'remaining') paymentForm.setData('amount', String(remainingBalance > 0 ? remainingBalance : ''));
-                                                                            else if (opt.value === 'full_payment') paymentForm.setData('amount', String(totalAmount));
-                                                                            else paymentForm.setData('amount', '');
-                                                                        }}
-                                                                        className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
-                                                                            paymentForm.data.type === opt.value
-                                                                                ? 'bg-background text-foreground shadow-sm'
-                                                                                : 'text-muted-foreground hover:text-foreground'
-                                                                        }`}
-                                                                    >
-                                                                        {opt.label}
-                                                                    </button>
-                                                                ))}
-                                                            </div>
-                                                        </div>
-
-                                                        {/* Amount */}
-                                                        <div>
-                                                            <Label className="text-sm font-medium mb-1.5 block">Amount</Label>
-                                                            <div className="flex gap-1.5 mb-2 flex-wrap">
-                                                                {paymentForm.data.type === 'remaining' && remainingBalance > 0 && (
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => paymentForm.setData('amount', String(remainingBalance))}
-                                                                        className={`px-2.5 py-1 text-xs font-medium rounded-md border transition-colors ${
-                                                                            Number(paymentForm.data.amount) === remainingBalance
-                                                                                ? 'bg-primary/10 border-primary/30 text-primary'
-                                                                                : 'bg-muted/50 border-border text-muted-foreground hover:bg-muted'
-                                                                        }`}
-                                                                    >
-                                                                        Remaining {formatPrice(remainingBalance)}
-                                                                    </button>
-                                                                )}
-                                                                {paymentForm.data.type === 'full_payment' && (
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => paymentForm.setData('amount', String(totalAmount))}
-                                                                        className={`px-2.5 py-1 text-xs font-medium rounded-md border transition-colors ${
-                                                                            Number(paymentForm.data.amount) === totalAmount
-                                                                                ? 'bg-primary/10 border-primary/30 text-primary'
-                                                                                : 'bg-muted/50 border-border text-muted-foreground hover:bg-muted'
-                                                                        }`}
-                                                                    >
-                                                                        Total {formatPrice(totalAmount)}
-                                                                    </button>
-                                                                )}
-                                                                {paymentForm.data.type === 'downpayment' && (
-                                                                    [0.25, 0.5, 0.75].map(fraction => {
-                                                                        const val = totalAmount * fraction;
-                                                                        return (
-                                                                            <button
-                                                                                key={fraction}
-                                                                                type="button"
-                                                                                onClick={() => paymentForm.setData('amount', String(val))}
-                                                                                className={`px-2.5 py-1 text-xs font-medium rounded-md border transition-colors ${
-                                                                                    Number(paymentForm.data.amount) === val
-                                                                                        ? 'bg-primary/10 border-primary/30 text-primary'
-                                                                                        : 'bg-muted/50 border-border text-muted-foreground hover:bg-muted'
-                                                                                }`}
-                                                                            >
-                                                                                {Math.round(fraction * 100)}% ({formatPrice(val)})
-                                                                            </button>
-                                                                        );
-                                                                    })
-                                                                )}
-                                                            </div>
-                                                            <div className="relative">
-                                                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                                                    <span className="text-muted-foreground text-sm">$</span>
-                                                                </div>
-                                                                <Input
-                                                                    type="number"
-                                                                    step="0.01"
-                                                                    min="0.01"
-                                                                    value={paymentForm.data.amount}
-                                                                    onChange={e => paymentForm.setData('amount', e.target.value)}
-                                                                    placeholder="0.00"
-                                                                    className="pl-7"
-                                                                />
-                                                            </div>
-                                                            {paymentForm.errors.amount && (
-                                                                <p className="mt-1 text-xs text-destructive">{paymentForm.errors.amount}</p>
-                                                            )}
-                                                        </div>
-
-                                                        {/* Method */}
-                                                        <div>
-                                                            <Label className="text-sm font-medium mb-1.5 block">Method</Label>
-                                                            <Select
-                                                                value={paymentForm.data.payment_method}
-                                                                onValueChange={v => paymentForm.setData('payment_method', v)}
-                                                            >
-                                                                <SelectTrigger>
-                                                                    <SelectValue />
-                                                                </SelectTrigger>
-                                                                <SelectContent>
-                                                                    <SelectItem value="cash">Cash</SelectItem>
-                                                                    <SelectItem value="card">Card</SelectItem>
-                                                                    <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
-                                                                    <SelectItem value="online">Online</SelectItem>
-                                                                    <SelectItem value="other">Other</SelectItem>
-                                                                </SelectContent>
-                                                            </Select>
-                                                        </div>
-
-                                                        {/* Transaction ID */}
-                                                        <div>
-                                                            <Label className="text-sm font-medium">
-                                                                Transaction ID <span className="text-muted-foreground font-normal">(optional)</span>
-                                                            </Label>
-                                                            <Input
-                                                                type="text"
-                                                                value={paymentForm.data.transaction_id}
-                                                                onChange={e => paymentForm.setData('transaction_id', e.target.value)}
-                                                                placeholder="e.g. TXN-12345"
-                                                                className="mt-1.5"
-                                                            />
-                                                        </div>
-
-                                                        {/* Recent payments */}
-                                                        {booking.payments && booking.payments.length > 0 && (
-                                                            <div>
-                                                                <p className="text-xs font-medium text-muted-foreground mb-1.5">Recent payments</p>
-                                                                <div className="space-y-1 max-h-20 overflow-y-auto">
-                                                                    {[...booking.payments].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 3).map(p => (
-                                                                        <div key={p.id} className="flex items-center justify-between text-xs p-2 rounded-md bg-muted/30 border">
-                                                                            <div className="flex items-center gap-1.5 min-w-0">
-                                                                                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${p.payment_status === 'completed' ? 'bg-emerald-400' : 'bg-amber-400'}`} />
-                                                                                <span className="text-muted-foreground truncate">{paymentTypeLabel(p.type)}</span>
-                                                                            </div>
-                                                                            <div className="flex items-center gap-2 shrink-0 ml-2">
-                                                                                <span className="font-medium text-foreground">{formatPrice(p.amount)}</span>
-                                                                                <span className="text-muted-foreground/60">{new Date(p.created_at).toLocaleDateString()}</span>
-                                                                                {remainingBalance > 0 && (
-                                                                                    <button
-                                                                                        type="button"
-                                                                                        onClick={() => {
-                                                                                            editPaymentForm.setData({
-                                                                                                amount: String(p.amount),
-                                                                                                payment_method: p.payment_method,
-                                                                                                transaction_id: p.transaction_id ?? '',
-                                                                                            });
-                                                                                            setEditingPayment(p);
-                                                                                            setShowPaymentSheet(false);
-                                                                                        }}
-                                                                                        className="text-muted-foreground/40 hover:text-foreground transition-colors"
-                                                                                        title="Edit payment"
-                                                                                    >
-                                                                                        <PenLine className="w-3 h-3" />
-                                                                                    </button>
-                                                                                )}
-                                                                            </div>
-                                                                        </div>
-                                                                    ))}
-                                                                </div>
-                                                            </div>
-                                                        )}
-
-                                                        <div className="flex gap-2 pt-2 mt-auto">
-                                                            <SheetClose asChild>
-                                                                <Button type="button" variant="outline" className="flex-1">
-                                                                    Cancel
-                                                                </Button>
-                                                            </SheetClose>
-                                                            <Button
-                                                                type="submit"
-                                                                className="flex-1"
-                                                                disabled={paymentForm.processing}
-                                                            >
-                                                                {paymentForm.processing ? 'Saving...' : 'Save Payment'}
-                                                            </Button>
-                                                        </div>
-                                                    </form>
-                                                </SheetContent>
-                                            </Sheet>
+                                        {booking.status === 'active' && (
+                                            <CheckinVehicleSheet booking={booking} extraCharges={extraCharges} />
                                         )}
 
                                         {['completed', 'cancelled'].includes(booking.status) ? (
@@ -741,14 +625,14 @@ export default function AdminBookingsShow({ booking }: AdminBookingsShowProps) {
                                                 Update Status
                                             </Button>
                                         ) : (
-                                        <Popover open={statusOpen} onOpenChange={setStatusOpen}>
+                                        <Popover open={statusOpen} onOpenChange={handleStatusOpenChange}>
                                             <PopoverTrigger asChild>
                                                 <Button variant="outline" className="w-full">
                                                     <BadgeCheck className="w-4 h-4 mr-1.5" />
                                                     Update Status
                                                 </Button>
                                             </PopoverTrigger>
-                                            <PopoverContent align="end" className="w-[340px] p-4" sideOffset={8}>
+                                            <PopoverContent align="end" className="w-[320px] p-4" sideOffset={8}>
                                                 <div className="space-y-3">
                                                     <div>
                                                         <p className="text-sm font-semibold text-foreground">Update Status</p>
@@ -761,35 +645,25 @@ export default function AdminBookingsShow({ booking }: AdminBookingsShowProps) {
                                                             <Label className="text-xs font-medium">New Status</Label>
                                                             <Select
                                                                 value={form.data.status}
-                                                                onValueChange={v => form.setData('status', v)}
+                                                                onValueChange={v => {
+                                                                    form.setData('status', v);
+                                                                    if (v !== 'cancelled') setConfirmCancel(false);
+                                                                }}
                                                             >
                                                                 <SelectTrigger className="mt-1">
                                                                     <SelectValue />
                                                                 </SelectTrigger>
                                                                 <SelectContent>
-                                                                    {statusOptions().map(o => (
+                                                                    {popoverStatusOptions.map(o => (
                                                                         <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
                                                                     ))}
                                                                 </SelectContent>
                                                             </Select>
                                                         </div>
 
-                                                        {form.data.status !== booking.status && !(() => {
-                                                            const allowed: Record<string, string[]> = {
-                                                                pending: ['confirmed', 'cancelled'],
-                                                                confirmed: ['active', 'cancelled'],
-                                                                active: ['completed', 'cancelled'],
-                                                                completed: [],
-                                                                cancelled: [],
-                                                            };
-                                                            return allowed[booking.status]?.includes(form.data.status);
-                                                        })() && (
-                                                            <div className="p-2 rounded-md bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800">
-                                                                <p className="text-[11px] text-amber-800 dark:text-amber-200">
-                                                                    Cannot move from &ldquo;{statusOptions().find(o => o.value === booking.status)?.label ?? booking.status}&rdquo; to &ldquo;{statusOptions().find(o => o.value === form.data.status)?.label ?? form.data.status}&rdquo;.
-                                                                </p>
-                                                            </div>
-                                                        )}
+                                                        <p className="text-[11px] text-muted-foreground">
+                                                            Check-out and check-in are handled from the vehicle handover buttons.
+                                                        </p>
 
                                                         {booking.status === 'pending' && form.data.status === 'confirmed' && (
                                                             <div>
@@ -814,79 +688,56 @@ export default function AdminBookingsShow({ booking }: AdminBookingsShowProps) {
                                                             </div>
                                                         )}
 
-                                                        {(() => {
-                                                            const showRemaining = (booking.status === 'confirmed' && ['active', 'completed'].includes(form.data.status))
-                                                                || (booking.status === 'active' && form.data.status === 'completed');
-                                                            if (!showRemaining) return null;
-                                                            return (
-                                                                <div className="p-2 rounded-md bg-muted border">
-                                                                    <p className="text-[11px] text-muted-foreground">
-                                                                        <span className="font-medium">Remaining: </span>
-                                                                        <span className={`font-bold ${remainingBalance > 0 ? 'text-destructive' : 'text-emerald-600'}`}>
-                                                                            {formatPrice(remainingBalance)}
-                                                                        </span>
-                                                                    </p>
-                                                                    {remainingBalance > 0 && (
-                                                                        <p className="text-[10px] text-destructive mt-0.5">
-                                                                            Full payment required to mark as Completed.
-                                                                        </p>
-                                                                    )}
+                                                        {form.data.status === 'cancelled' && confirmCancel && (
+                                                            <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 space-y-2">
+                                                                <p className="text-xs font-semibold text-destructive">Cancel this booking?</p>
+                                                                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                                                                    The booking will be permanently cancelled. Any refunds or adjustments must be handled separately.
+                                                                </p>
+                                                                <div className="flex gap-2 pt-1">
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="ghost"
+                                                                        size="sm"
+                                                                        className="flex-1 h-8 text-xs"
+                                                                        onClick={() => setConfirmCancel(false)}
+                                                                    >
+                                                                        Go back
+                                                                    </Button>
+                                                                    <Button
+                                                                        type="submit"
+                                                                        variant="destructive"
+                                                                        size="sm"
+                                                                        className="flex-1 h-8 text-xs"
+                                                                        disabled={form.processing}
+                                                                    >
+                                                                        Confirm cancellation
+                                                                    </Button>
                                                                 </div>
-                                                            );
-                                                        })()}
+                                                            </div>
+                                                        )}
 
-                                                        {(() => {
-                                                            const showPaymentField = (booking.status === 'confirmed' && ['active', 'completed'].includes(form.data.status))
-                                                                || (booking.status === 'active' && form.data.status === 'completed');
-                                                            if (!showPaymentField) return null;
-                                                            const isRequired = (booking.status === 'confirmed' && form.data.status === 'completed')
-                                                                || (booking.status === 'active' && form.data.status === 'completed' && remainingBalance > 0);
-                                                            return (
-                                                                <div>
-                                                                    <Label className="text-xs font-medium">
-                                                                        Payment Amount
-                                                                        {isRequired ? <span className="text-destructive"> *</span> : <span className="text-muted-foreground font-normal"> (optional)</span>}
-                                                                    </Label>
-                                                                    <div className="relative mt-1">
-                                                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                                                            <span className="text-muted-foreground text-sm">$</span>
-                                                                        </div>
-                                                                        <Input
-                                                                            type="number"
-                                                                            step="0.01"
-                                                                            min="0"
-                                                                            value={form.data.amount}
-                                                                            onChange={e => form.setData('amount', e.target.value)}
-                                                                            placeholder="0.00"
-                                                                            className="pl-7 h-8 text-sm"
-                                                                        />
-                                                                    </div>
-                                                                    {form.errors.amount && (
-                                                                        <p className="mt-0.5 text-[11px] text-destructive">{form.errors.amount}</p>
-                                                                    )}
-                                                                </div>
-                                                            );
-                                                        })()}
-
-                                                        <div className="flex gap-2 pt-1">
-                                                            <Button
-                                                                type="button"
-                                                                variant="outline"
-                                                                size="sm"
-                                                                className="flex-1 h-8 text-xs"
-                                                                onClick={() => setStatusOpen(false)}
-                                                            >
-                                                                Cancel
-                                                            </Button>
-                                                            <Button
-                                                                type="submit"
-                                                                size="sm"
-                                                                className="flex-1 h-8 text-xs"
-                                                                disabled={form.processing}
-                                                            >
-                                                                {form.processing ? 'Saving...' : 'Update'}
-                                                            </Button>
-                                                        </div>
+                                                        {!confirmCancel && (
+                                                            <div className="flex gap-2 pt-1">
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    className="flex-1 h-8 text-xs"
+                                                                    onClick={() => handleStatusOpenChange(false)}
+                                                                >
+                                                                    Cancel
+                                                                </Button>
+                                                                <Button
+                                                                    type="submit"
+                                                                    size="sm"
+                                                                    className="flex-1 h-8 text-xs"
+                                                                    disabled={form.processing}
+                                                                >
+                                                                    {form.processing ? 'Saving...' : 'Update'}
+                                                                </Button>
+                                                            </div>
+                                                        )}
                                                     </form>
                                                 </div>
                                             </PopoverContent>
@@ -905,127 +756,23 @@ export default function AdminBookingsShow({ booking }: AdminBookingsShowProps) {
                                             </Link>
                                         )}
 
+                                        <Link href={route('admin.bookings.invoice', booking.id)} className="block">
+                                            <Button variant="outline" className="w-full">
+                                                <Printer className="w-4 h-4 mr-1.5" />
+                                                View Invoice
+                                            </Button>
+                                        </Link>
+
                                     </CardContent>
 
                                     {/* Edit Payment Sheet */}
-                                    <Sheet open={!!editingPayment} onOpenChange={open => {
-                                        if (!open) {
-                                            setEditingPayment(null);
-                                            editPaymentForm.reset();
-                                        }
-                                    }}>
-                                        <SheetContent side="right" className="sm:max-w-md flex flex-col">
-                                            <SheetHeader>
-                                                <SheetTitle>Edit Payment</SheetTitle>
-                                                <SheetDescription>
-                                                    {editingPayment && (
-                                                        <>{paymentTypeLabel(editingPayment.type)} &middot; Current: {formatPrice(editingPayment.amount)}</>
-                                                    )}
-                                                </SheetDescription>
-                                            </SheetHeader>
-
-                                            <form
-                                                onSubmit={updatePayment}
-                                                onKeyDown={e => {
-                                                    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-                                                        e.preventDefault();
-                                                        updatePayment(e as any);
-                                                    }
-                                                }}
-                                                className="space-y-4 mt-5 flex-1 flex flex-col"
-                                            >
-                                                {/* Remaining Balance Indicator */}
-                                                <div className="p-3 rounded-lg bg-muted/50 border">
-                                                    <div className="flex items-center justify-between text-sm">
-                                                        <span className="text-muted-foreground">Remaining Balance</span>
-                                                        <span className={`font-bold ${remainingBalance > 0 ? 'text-destructive' : 'text-emerald-600'}`}>
-                                                            {formatPrice(remainingBalance)}
-                                                        </span>
-                                                    </div>
-                                                    <div className="flex items-center justify-between text-xs text-muted-foreground mt-1">
-                                                        <span>Total: {formatPrice(totalAmount)}</span>
-                                                        <span>Paid: {formatPrice(totalPaid)}</span>
-                                                    </div>
-                                                    {editingPayment && (
-                                                        <p className="text-[11px] text-muted-foreground mt-1.5">
-                                                            Editing <strong>{paymentTypeLabel(editingPayment.type)}</strong> &mdash; current: {formatPrice(editingPayment.amount)}
-                                                        </p>
-                                                    )}
-                                                </div>
-
-                                                {/* Amount */}
-                                                <div>
-                                                    <Label className="text-sm font-medium mb-1.5 block">Amount</Label>
-                                                    <div className="relative">
-                                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                                            <span className="text-muted-foreground text-sm">$</span>
-                                                        </div>
-                                                        <Input
-                                                            type="number"
-                                                            step="0.01"
-                                                            min="0.01"
-                                                            value={editPaymentForm.data.amount}
-                                                            onChange={e => editPaymentForm.setData('amount', e.target.value)}
-                                                            placeholder="0.00"
-                                                            className="pl-7"
-                                                        />
-                                                    </div>
-                                                    {editPaymentForm.errors.amount && (
-                                                        <p className="mt-1 text-xs text-destructive">{editPaymentForm.errors.amount}</p>
-                                                    )}
-                                                </div>
-
-                                                {/* Method */}
-                                                <div>
-                                                    <Label className="text-sm font-medium mb-1.5 block">Method</Label>
-                                                    <Select
-                                                        value={editPaymentForm.data.payment_method}
-                                                        onValueChange={v => editPaymentForm.setData('payment_method', v)}
-                                                    >
-                                                        <SelectTrigger>
-                                                            <SelectValue />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            <SelectItem value="cash">Cash</SelectItem>
-                                                            <SelectItem value="card">Card</SelectItem>
-                                                            <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
-                                                            <SelectItem value="online">Online</SelectItem>
-                                                            <SelectItem value="other">Other</SelectItem>
-                                                        </SelectContent>
-                                                    </Select>
-                                                </div>
-
-                                                {/* Transaction ID */}
-                                                <div>
-                                                    <Label className="text-sm font-medium">
-                                                        Transaction ID <span className="text-muted-foreground font-normal">(optional)</span>
-                                                    </Label>
-                                                    <Input
-                                                        type="text"
-                                                        value={editPaymentForm.data.transaction_id}
-                                                        onChange={e => editPaymentForm.setData('transaction_id', e.target.value)}
-                                                        placeholder="e.g. TXN-12345"
-                                                        className="mt-1.5"
-                                                    />
-                                                </div>
-
-                                                <div className="flex gap-2 pt-2 mt-auto">
-                                                    <SheetClose asChild>
-                                                        <Button type="button" variant="outline" className="flex-1">
-                                                            Cancel
-                                                        </Button>
-                                                    </SheetClose>
-                                                    <Button
-                                                        type="submit"
-                                                        className="flex-1"
-                                                        disabled={editPaymentForm.processing}
-                                                    >
-                                                        {editPaymentForm.processing ? 'Saving...' : 'Save Changes'}
-                                                    </Button>
-                                                </div>
-                                            </form>
-                                        </SheetContent>
-                                    </Sheet>
+                                    <EditPaymentSheet
+                                        booking={booking}
+                                        editingPayment={editingPayment}
+                                        onOpenChange={open => {
+                                            if (!open) setEditingPayment(null);
+                                        }}
+                                    />
                                 </Card>
                             </div>
                         </div>
@@ -1033,14 +780,17 @@ export default function AdminBookingsShow({ booking }: AdminBookingsShowProps) {
                         {/* Main Content */}
                         <div className="flex-1 min-w-0 space-y-4">
                             {/* Vehicle Section */}
+                            {booking.car ? (
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                                 {/* Left — Hero Card */}
                                 <Card className="overflow-hidden h-full">
                                     <div className="relative h-44 sm:h-52 bg-muted">
-                                        {booking.car.image_path ? (
+                                        {booking.car.image_path && !carImageError ? (
                                             <img
                                                 src={`/storage/${booking.car.image_path}`}
                                                 alt={`${booking.car.brand} ${booking.car.model}`}
+                                                loading="lazy"
+                                                onError={() => setCarImageError(true)}
                                                 className="w-full h-full object-contain p-4"
                                             />
                                         ) : (
@@ -1117,6 +867,11 @@ export default function AdminBookingsShow({ booking }: AdminBookingsShowProps) {
                                     </div>
                                 </Card>
                             </div>
+                            ) : (
+                            <Card className="p-4">
+                                <p className="text-sm text-muted-foreground">Vehicle details unavailable.</p>
+                            </Card>
+                            )}
 
                             {/* Period Section */}
                             <Card>
@@ -1175,6 +930,157 @@ export default function AdminBookingsShow({ booking }: AdminBookingsShowProps) {
                                 </CardContent>
                             </Card>
 
+                            {/* Vehicle Handover */}
+                            {(booking.pickup_handover || booking.return_handover) && (
+                                <Card>
+                                    <CardHeader>
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                                                <Fuel className="w-5 h-5" />
+                                            </div>
+                                            <div>
+                                                <CardTitle>Vehicle Handover</CardTitle>
+                                                <CardDescription>Fuel and mileage readings at pickup and return</CardDescription>
+                                            </div>
+                                        </div>
+                                    </CardHeader>
+                                    <CardContent className="space-y-4">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="rounded-lg border p-4 space-y-2.5">
+                                                <div className="flex items-center justify-between">
+                                                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                                                        <Fuel className="w-3.5 h-3.5 text-amber-500" /> Pickup
+                                                    </p>
+                                                        {booking.pickup_handover?.captured_at && (
+                                                            <span className="text-[10px] text-muted-foreground">{formatDateTime(booking.pickup_handover.captured_at)}</span>
+                                                        )}
+                                                    </div>
+                                                {booking.pickup_handover ? (
+                                                    <>
+                                                        <div>
+                                                            <p className="text-[10px] font-medium text-muted-foreground mb-1">Fuel Level</p>
+                                                            <FuelBar level={booking.pickup_handover.fuel_level} tone="emerald" />
+                                                        </div>
+                                                        <div className="flex items-center justify-between text-sm">
+                                                            <span className="text-muted-foreground">Odometer</span>
+                                                            <span className="font-semibold font-mono text-foreground">{formatOdometer(booking.pickup_handover.odometer)}</span>
+                                                        </div>
+                                                        {booking.pickup_handover.notes && (
+                                                            <p className="text-xs text-muted-foreground italic">{booking.pickup_handover.notes}</p>
+                                                        )}
+                                                         {booking.pickup_handover.damages && booking.pickup_handover.damages.length > 0 && (
+                                                             <div className="pt-2 border-t">
+                                                                <p className="text-[10px] font-medium text-muted-foreground mb-1">
+                                                                    Damage ({booking.pickup_handover.damages.length})
+                                                                </p>
+                                                                <div className="print:hidden">
+                                                                    <VehicleDamageMap
+                                                                        damages={booking.pickup_handover.damages}
+                                                                        readOnly
+                                                                        variant="existing"
+                                                                        vehicleType={booking.car.vehicle_type}
+                                                                        size="sm"
+                                                                    />
+                                                                </div>
+                                                                <div className="hidden print:block">
+                                                                    <PrintDamageSummary
+                                                                        damages={booking.pickup_handover.damages}
+                                                                        variant="existing"
+                                                                        vehicleType={booking.car.vehicle_type}
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </>
+                                                ) : (
+                                                    <p className="text-sm text-muted-foreground">Not recorded</p>
+                                                )}
+                                            </div>
+                                            <div className="rounded-lg border p-4 space-y-2.5">
+                                                <div className="flex items-center justify-between">
+                                                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                                                        <Fuel className="w-3.5 h-3.5 text-emerald-500" /> Return
+                                                    </p>
+                                                        {booking.return_handover?.captured_at && (
+                                                            <span className="text-[10px] text-muted-foreground">{formatDateTime(booking.return_handover.captured_at)}</span>
+                                                        )}
+                                                    </div>
+                                                {booking.return_handover ? (
+                                                    <>
+                                                        <div>
+                                                            <p className="text-[10px] font-medium text-muted-foreground mb-1">Fuel Level</p>
+                                                            <FuelBar level={booking.return_handover.fuel_level} tone="amber" />
+                                                        </div>
+                                                        <div className="flex items-center justify-between text-sm">
+                                                            <span className="text-muted-foreground">Odometer</span>
+                                                            <span className="font-semibold font-mono text-foreground">{formatOdometer(booking.return_handover.odometer)}</span>
+                                                        </div>
+                                                        {booking.return_handover.notes && (
+                                                            <p className="text-xs text-muted-foreground italic">{booking.return_handover.notes}</p>
+                                                        )}
+                                                         {booking.return_handover.damages && booking.return_handover.damages.length > 0 && (
+                                                             <div className="pt-2 border-t">
+                                                                <p className="text-[10px] font-medium text-muted-foreground mb-1">
+                                                                    Damage ({booking.return_handover.damages.length})
+                                                                </p>
+                                                                <div className="print:hidden">
+                                                                    <VehicleDamageMap
+                                                                        damages={booking.return_handover.damages}
+                                                                        readOnly
+                                                                        variant="new"
+                                                                        vehicleType={booking.car.vehicle_type}
+                                                                        size="sm"
+                                                                    />
+                                                                </div>
+                                                                <div className="hidden print:block">
+                                                                    <PrintDamageSummary
+                                                                        damages={booking.return_handover.damages}
+                                                                        variant="new"
+                                                                        vehicleType={booking.car.vehicle_type}
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </>
+                                                ) : (
+                                                    <p className="text-sm text-muted-foreground">Not recorded</p>
+                                                )}
+                                            </div>
+                                        </div>
+                                        {(booking.handover_charges && booking.handover_charges.total > 0) || (booking.extra_charges ?? []).length > 0 ? (
+                                            <div className="rounded-lg border bg-muted/20 p-3 space-y-1.5">
+                                                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Additional Charges</p>
+                                                {booking.handover_charges && booking.handover_charges.fuel_refuel > 0 && (
+                                                    <div className="flex items-center justify-between text-sm">
+                                                        <span className="text-muted-foreground">Fuel refueling</span>
+                                                        <span className="font-semibold text-foreground">{formatPrice(booking.handover_charges.fuel_refuel)}</span>
+                                                    </div>
+                                                )}
+                                                {booking.handover_charges && booking.handover_charges.excess_mileage > 0 && (
+                                                    <div className="flex items-center justify-between text-sm">
+                                                        <span className="text-muted-foreground">Excess mileage ({booking.handover_charges.excess_km.toFixed(0)} km)</span>
+                                                        <span className="font-semibold text-foreground">{formatPrice(booking.handover_charges.excess_mileage)}</span>
+                                                    </div>
+                                                )}
+                                                {(booking.extra_charges ?? []).map((c) => (
+                                                    <div key={c.id} className="flex items-center justify-between text-sm">
+                                                        <span className="text-muted-foreground">
+                                                            {c.name}
+                                                            {Number(c.tax_amount) > 0 && <span className="text-[10px] text-muted-foreground/70"> incl. tax</span>}
+                                                        </span>
+                                                        <span className="font-semibold text-foreground">{c.operator === '-' ? '-' : ''}{formatPrice(Number(c.amount) + Number(c.tax_amount))}</span>
+                                                    </div>
+                                                ))}
+                                                <div className="flex items-center justify-between text-sm border-t pt-1.5">
+                                                    <span className="font-medium text-foreground">Total charges</span>
+                                                    <span className="font-bold text-foreground">{formatPrice(handoverChargesTotal + extraChargesTotal)}</span>
+                                                </div>
+                                            </div>
+                                        ) : null}
+                                    </CardContent>
+                                </Card>
+                            )}
+
                             {/* Notes Section */}
                             {booking.notes && (
                                 <Card>
@@ -1200,22 +1106,13 @@ export default function AdminBookingsShow({ booking }: AdminBookingsShowProps) {
                             {/* Footer */}
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pt-4 mt-4 border-t">
                                 <Link
-                                    href={route('admin.bookings.index')}
+                                    href={route('admin.reservations.index')}
                                     className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
                                 >
                                     <ArrowLeft className="w-4 h-4" />
-                                    Back to Bookings
+                                    Back to Reservations
                                 </Link>
                                 <div className="flex items-center gap-4">
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => window.print()}
-                                    >
-                                        <Printer className="w-4 h-4 mr-1.5" />
-                                        Print
-                                    </Button>
                                     <span className="text-xs text-muted-foreground">
                                         Created {formatDateTime(booking.created_at)}
                                     </span>
@@ -1226,29 +1123,5 @@ export default function AdminBookingsShow({ booking }: AdminBookingsShowProps) {
                 </div>
             </AuthenticatedLayout>
         </>
-    );
-}
-
-function SpecRow({ icon: Icon, label, value, color }: { icon: any; label: string; value: string | null | undefined; color: string }) {
-    const colorMap: Record<string, string> = {
-        blue: 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30',
-        purple: 'text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/30',
-        amber: 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30',
-        emerald: 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30',
-        rose: 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/30',
-        cyan: 'text-cyan-600 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-900/30',
-        slate: 'text-muted-foreground bg-muted',
-    };
-    const hasValue = value !== null && value !== undefined;
-    return (
-        <div className="flex items-center gap-3 py-2 border-b border-border last:border-b-0">
-            <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${colorMap[color] || colorMap.slate}`}>
-                <Icon className="w-3.5 h-3.5" />
-            </div>
-            <span className="text-xs text-muted-foreground min-w-[80px] font-medium">{label}</span>
-            <span className={`text-xs font-semibold font-mono truncate ${hasValue ? 'text-foreground' : 'text-muted-foreground/40'}`}>
-                {hasValue ? value : '—'}
-            </span>
-        </div>
     );
 }

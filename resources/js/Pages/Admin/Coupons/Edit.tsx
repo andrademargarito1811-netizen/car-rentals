@@ -21,6 +21,7 @@ interface Coupon {
     min_rate: number | null;
     is_active: boolean;
     coupon_type: CouponType;
+    created_at: string;
 }
 
 interface EditProps {

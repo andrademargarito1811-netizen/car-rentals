@@ -76,6 +76,13 @@ function formatDateTime(d: Date): string {
     return `${m} ${day}, ${h12}:${mins} ${ampm}`;
 }
 
+function toLocalIso(d: Date): string {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
+
 const TITLE_OPTIONS = ['Mr.', 'Mrs.', 'Ms.', 'Mx.', 'Dr.', 'Prof.'];
 
 const selectClass = `w-full text-sm px-2 py-1.5 rounded-lg border border-surface-200 dark:border-surface-600/40 bg-white dark:bg-brand-800 text-surface-900 dark:text-surface-100 focus:outline-none focus:ring-2 focus:ring-accent-400/30 appearance-none bg-[length:0.75rem] bg-[right_0.5rem_center] bg-no-repeat pr-7`;
@@ -135,9 +142,12 @@ const inputClass =
 
 const STEPS = [
     { num: 1, label: 'Dates', desc: 'Pick times & locations' },
-    { num: 2, label: 'Guest', desc: 'Driver details' },
-    { num: 3, label: 'Confirm', desc: 'Review & book' },
+    { num: 2, label: 'Guest', desc: 'Renter details' },
+    { num: 3, label: 'License', desc: 'Driver license' },
+    { num: 4, label: 'Confirm', desc: 'Review & book' },
 ];
+
+const LICENSE_CATEGORIES = ['A', 'B', 'C', 'D', 'E', 'F', 'G'];
 
 interface AppliedCoupon {
     code: string;
@@ -171,7 +181,15 @@ export default function QuickBookingPanel({ open, onClose, selectedCarIds, selec
         state: '',
         city: '',
         postal_code: '',
+        company_name: '',
         flight_no: '',
+        driver_first_name: '',
+        driver_last_name: '',
+        driver_birth_date: '',
+        license_number: '',
+        license_category: '',
+        license_expiry: '',
+        driver_is_renter: false,
         pickup_time: '10:00',
         return_time: '10:00',
         pickup_location: '',
@@ -180,6 +198,15 @@ export default function QuickBookingPanel({ open, onClose, selectedCarIds, selec
     });
 
     const update = (field: string, value: string | boolean) => setForm((f) => ({ ...f, [field]: value }));
+
+    const handleSameAsRenter = (checked: boolean) => {
+        setForm((f) => ({
+            ...f,
+            driver_is_renter: checked,
+            driver_first_name: checked ? f.first_name : f.driver_first_name,
+            driver_last_name: checked ? f.last_name : f.driver_last_name,
+        }));
+    };
 
     // Reset step + auto-fill when panel opens
     useEffect(() => {
@@ -214,11 +241,25 @@ export default function QuickBookingPanel({ open, onClose, selectedCarIds, selec
 
     const billingDays = useMemo(() => {
         if (!form.start_date || !form.end_date) return 0;
-        const start = new Date(`${form.start_date}T${form.pickup_time}:00`);
-        const end = new Date(`${form.end_date}T${form.return_time}:00`);
+        const toHHMM = (t?: string) => (t && t.length >= 5 ? t.substring(0, 5) : t || '');
+        const start = new Date(`${form.start_date}T${toHHMM(form.pickup_time) || '00:00'}:00`);
+        const end = new Date(`${form.end_date}T${toHHMM(form.return_time) || '23:59'}:00`);
         const diffMs = end.getTime() - start.getTime();
-        return Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+        return Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
     }, [form.start_date, form.end_date, form.pickup_time, form.return_time]);
+
+    const todayIsoPanel = toLocalIso(new Date());
+
+    const driverAge = useMemo(() => {
+        if (!form.driver_birth_date) return null;
+        const dob = new Date(form.driver_birth_date + 'T00:00:00');
+        if (isNaN(dob.getTime())) return null;
+        const today = new Date();
+        let age = today.getFullYear() - dob.getFullYear();
+        const m = today.getMonth() - dob.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
+        return age;
+    }, [form.driver_birth_date]);
 
     const overlappingCars = useMemo(() => {
         return selectedCars
@@ -331,7 +372,8 @@ export default function QuickBookingPanel({ open, onClose, selectedCarIds, selec
 
     const isValidStep1 = form.start_date && form.end_date && form.pickup_location && form.return_location;
     const isValidStep2 = form.first_name && form.last_name && form.email && form.email_confirmation && form.email === form.email_confirmation;
-    const isValid = isValidStep1 && isValidStep2 && form.agree_terms;
+    const isValidStep3 = !!(form.driver_first_name && form.driver_last_name && form.driver_birth_date && form.license_number && form.license_category && form.license_expiry && driverAge !== null && driverAge >= 18 && form.license_expiry > todayIsoPanel);
+    const isValid = isValidStep1 && isValidStep2 && isValidStep3 && form.agree_terms;
 
     const submit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -345,7 +387,7 @@ export default function QuickBookingPanel({ open, onClose, selectedCarIds, selec
             title: form.title,
             first_name: form.first_name,
             last_name: form.last_name,
-            driver_age: form.driver_age,
+            driver_age: driverAge !== null ? String(driverAge) : form.driver_age,
             phone: form.phone,
             email: form.email,
             email_confirmation: form.email_confirmation || form.email,
@@ -355,7 +397,16 @@ export default function QuickBookingPanel({ open, onClose, selectedCarIds, selec
             state: form.state,
             city: form.city,
             postal_code: form.postal_code,
+            company_name: form.company_name,
             flight_no: form.flight_no,
+            driver_info_required: true,
+            driver_is_renter: form.driver_is_renter,
+            driver_first_name: form.driver_first_name,
+            driver_last_name: form.driver_last_name,
+            driver_birth_date: form.driver_birth_date,
+            license_number: form.license_number,
+            license_category: form.license_category,
+            license_expiry: form.license_expiry,
             pickup_date: form.start_date,
             pickup_time: form.pickup_time,
             pickup_location: form.pickup_location,
@@ -691,15 +742,11 @@ export default function QuickBookingPanel({ open, onClose, selectedCarIds, selec
                                     <input type="text" value={form.last_name} onChange={(e) => update('last_name', e.target.value)} placeholder="Remengesau" className={inputClass} />
                                 </div>
 
-                                <div className="col-span-2">
-                                    <InputLabel value="Driver's Age" className="!text-xs !font-medium" />
-                                    <input type="number" min={18} value={form.driver_age} onChange={(e) => update('driver_age', e.target.value)} placeholder="30" className={inputClass} />
-                                </div>
-                                <div className="col-span-2">
+                                <div className="col-span-3">
                                     <InputLabel value="Phone No." className="!text-xs !font-medium" />
                                     <input type="tel" value={form.phone} onChange={(e) => update('phone', e.target.value)} placeholder="+680 ..." className={inputClass} />
                                 </div>
-                                <div className="col-span-2">
+                                <div className="col-span-3">
                                     <InputLabel value="Flight No. (optional)" className="!text-xs !font-medium" />
                                     <input type="text" value={form.flight_no} onChange={(e) => update('flight_no', e.target.value)} placeholder="e.g. UA 201" className={inputClass} />
                                 </div>
@@ -714,6 +761,11 @@ export default function QuickBookingPanel({ open, onClose, selectedCarIds, selec
                                     {form.email && form.email_confirmation && form.email !== form.email_confirmation && (
                                         <p className="mt-0.5 text-[10px] text-red-500">Emails do not match.</p>
                                     )}
+                                </div>
+
+                                <div className="col-span-6">
+                                    <InputLabel value="Company (optional)" className="!text-xs !font-medium" />
+                                    <input type="text" value={form.company_name} onChange={(e) => update('company_name', e.target.value)} placeholder="e.g. Palau Pacific Resort" className={inputClass} />
                                 </div>
 
                                 <div className="col-span-6">
@@ -756,14 +808,88 @@ export default function QuickBookingPanel({ open, onClose, selectedCarIds, selec
                                 </button>
                                 <button type="button" onClick={() => { setDirection(1); setStep(3); }} disabled={!isValidStep2}
                                     className="flex-1 py-2.5 text-sm font-bold rounded-lg bg-accent-400 text-white hover:bg-accent-500 transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed">
+                                    Driver License →
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Step 3: Driver License (mandatory) */}
+                    {step === 3 && (
+                        <div className={`space-y-4 ${direction === 1 ? 'animate-slide-in-right' : 'animate-slide-in-left'}`}>
+                            <div className="flex items-start justify-between gap-2">
+                                <p className="text-xs font-semibold text-surface-400 dark:text-surface-500 uppercase tracking-wider">Driver License</p>
+                                <label className="flex cursor-pointer items-center gap-2 shrink-0">
+                                    <input type="checkbox" checked={form.driver_is_renter}
+                                        onChange={(e) => handleSameAsRenter(e.target.checked)}
+                                        className="h-4 w-4 rounded border-surface-300 text-accent-500 focus:ring-accent-400/30" />
+                                    <span className="text-xs font-medium text-surface-600 dark:text-surface-400">Same as renter</span>
+                                </label>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <InputLabel value="First Name" className="!text-xs !font-medium" />
+                                    <input type="text" value={form.driver_first_name} onChange={(e) => update('driver_first_name', e.target.value)} placeholder="Juan" className={inputClass} />
+                                </div>
+                                <div>
+                                    <InputLabel value="Last Name" className="!text-xs !font-medium" />
+                                    <input type="text" value={form.driver_last_name} onChange={(e) => update('driver_last_name', e.target.value)} placeholder="Remengesau" className={inputClass} />
+                                </div>
+
+                                <div>
+                                    <InputLabel value="Birthdate" className="!text-xs !font-medium" />
+                                    <input type="date" value={form.driver_birth_date} max={todayIsoPanel} onChange={(e) => update('driver_birth_date', e.target.value)} className={inputClass} />
+                                </div>
+                                <div>
+                                    <InputLabel value="Age" className="!text-xs !font-medium" />
+                                    <div className={`flex items-center px-2 py-1.5 rounded-lg border border-surface-200 dark:border-surface-600/40 bg-surface-50 dark:bg-brand-800 text-sm ${
+                                        driverAge !== null && driverAge >= 18
+                                            ? 'text-surface-900 dark:text-surface-100'
+                                            : 'text-surface-400 dark:text-surface-500'
+                                    }`}>
+                                        {driverAge !== null ? driverAge : '—'}
+                                        {driverAge !== null && driverAge < 18 && (
+                                            <span className="ml-1.5 text-[10px] font-semibold text-red-500">Min 18</span>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <InputLabel value="License Number" className="!text-xs !font-medium" />
+                                    <input type="text" value={form.license_number} onChange={(e) => update('license_number', e.target.value)} placeholder="e.g. DL-1234" className={inputClass} />
+                                </div>
+                                <div>
+                                    <InputLabel value="License Category" className="!text-xs !font-medium" />
+                                    <select value={form.license_category} onChange={(e) => update('license_category', e.target.value)}
+                                        className={selectClass}
+                                        style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%2364748b'%3E%3Cpath fill-rule='evenodd' d='M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z' clip-rule='evenodd'/%3E%3C/svg%3E")` }}>
+                                        <option value="">Select category</option>
+                                        {LICENSE_CATEGORIES.map((c) => (<option key={c} value={c}>{c}</option>))}
+                                    </select>
+                                </div>
+
+                                <div className="col-span-2">
+                                    <InputLabel value="License Expiry" className="!text-xs !font-medium" />
+                                    <input type="date" value={form.license_expiry} min={todayIsoPanel} onChange={(e) => update('license_expiry', e.target.value)} className={inputClass} />
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 pt-2">
+                                <button type="button" onClick={() => { setDirection(-1); setStep(2); }}
+                                    className="px-4 py-2.5 text-sm font-medium rounded-lg text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">
+                                    ← Back
+                                </button>
+                                <button type="button" onClick={() => { setDirection(1); setStep(4); }} disabled={!isValidStep3}
+                                    className="flex-1 py-2.5 text-sm font-bold rounded-lg bg-accent-400 text-white hover:bg-accent-500 transition-colors shadow-sm disabled:opacity-40 disabled:cursor-not-allowed">
                                     Review & Confirm →
                                 </button>
                             </div>
                         </div>
                     )}
 
-                    {/* Step 3: Confirm */}
-                    {step === 3 && (
+                    {/* Step 4: Confirm */}
+                    {step === 4 && (
                         <div className={`space-y-4 ${direction === 1 ? 'animate-slide-in-right' : 'animate-slide-in-left'}`}>
                             <div className="rounded-xl bg-surface-25 dark:bg-surface-800/20 border border-surface-100 dark:border-surface-700/30 p-4 space-y-2">
                                 <p className="text-xs font-semibold text-surface-400 uppercase tracking-wider">Summary</p>
@@ -771,9 +897,15 @@ export default function QuickBookingPanel({ open, onClose, selectedCarIds, selec
                                     <div className="flex justify-between"><span className="text-surface-500">Vehicle</span><span className="font-semibold text-surface-900 dark:text-white">{firstCar?.brand} {firstCar?.model}</span></div>
                                     <div className="flex justify-between"><span className="text-surface-500">Dates</span><span className="font-semibold text-surface-900 dark:text-white">{form.start_date} → {form.end_date}</span></div>
                                     <div className="flex justify-between"><span className="text-surface-500">Duration</span><span className="font-semibold text-surface-900 dark:text-white">{billingDays} day{billingDays !== 1 ? 's' : ''}</span></div>
-                                    <div className="flex justify-between"><span className="text-surface-500">Guest</span><span className="font-semibold text-surface-900 dark:text-white">{form.first_name} {form.last_name}</span></div>
+                                    <div className="flex justify-between"><span className="text-surface-500">Renter</span><span className="font-semibold text-surface-900 dark:text-white">{form.first_name} {form.last_name}</span></div>
+                                    {form.company_name && (
+                                        <div className="flex justify-between"><span className="text-surface-500">Company</span><span className="font-semibold text-surface-900 dark:text-white">{form.company_name}</span></div>
+                                    )}
                                     <div className="flex justify-between"><span className="text-surface-500">Email</span><span className="font-semibold text-surface-900 dark:text-white">{form.email}</span></div>
                                     <div className="flex justify-between"><span className="text-surface-500">Phone</span><span className="font-semibold text-surface-900 dark:text-white">{form.phone || '—'}</span></div>
+                                    <div className="flex justify-between"><span className="text-surface-500">Driver</span><span className="font-semibold text-surface-900 dark:text-white">{form.driver_first_name} {form.driver_last_name}{driverAge !== null ? ` (${driverAge})` : ''}</span></div>
+                                    <div className="flex justify-between"><span className="text-surface-500">License No.</span><span className="font-mono font-semibold text-surface-900 dark:text-white">{form.license_number ? form.license_number.replace(/.(?=.{4})/g, '•') : '—'}</span></div>
+                                    <div className="flex justify-between"><span className="text-surface-500">License</span><span className="font-semibold text-surface-900 dark:text-white">Cat. {form.license_category} · Exp {form.license_expiry}</span></div>
                                     <div className="flex justify-between"><span className="text-surface-500">Pickup</span><span className="font-semibold text-surface-900 dark:text-white">{form.pickup_time} @ {form.pickup_location || '—'}</span></div>
                                     <div className="flex justify-between"><span className="text-surface-500">Return</span><span className="font-semibold text-surface-900 dark:text-white">{form.return_time} @ {form.return_location || '—'}</span></div>
                                 </div>
@@ -894,7 +1026,7 @@ export default function QuickBookingPanel({ open, onClose, selectedCarIds, selec
                             </div>
 
                             <div className="flex items-center gap-2 pt-1">
-                                <button type="button" onClick={() => { setDirection(-1); setStep(2); }}
+                                <button type="button" onClick={() => { setDirection(-1); setStep(3); }}
                                     className="px-4 py-2.5 text-sm font-medium rounded-lg text-surface-500 hover:text-surface-700 dark:hover:text-surface-300 transition-colors">
                                     ← Edit
                                 </button>

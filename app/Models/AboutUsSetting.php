@@ -16,9 +16,12 @@ class AboutUsSetting extends Model
         'hero_image_path',
         'story_heading',
         'story_content',
+        'story_image_path',
         'mission_text',
         'vision_text',
         'stats',
+        'values',
+        'team_members',
         'is_active',
     ];
 
@@ -26,6 +29,8 @@ class AboutUsSetting extends Model
     {
         return [
             'stats' => 'array',
+            'values' => 'array',
+            'team_members' => 'array',
             'is_active' => 'boolean',
         ];
     }

@@ -8,14 +8,38 @@ class Review extends Model
 {
     protected $fillable = [
         'booking_id', 'car_id', 'user_id', 'guest_id',
-        'rating', 'comment',
+        'rating', 'comment', 'is_approved',
     ];
 
     protected function casts(): array
     {
         return [
             'rating' => 'integer',
+            'is_approved' => 'boolean',
         ];
+    }
+
+    public function scopeApproved($query)
+    {
+        return $query->where('is_approved', true);
+    }
+
+    public function scopePending($query)
+    {
+        return $query->where('is_approved', false);
+    }
+
+    public function getCustomerNameAttribute(): string
+    {
+        $name = $this->user?->name
+            ?? trim(($this->guest?->first_name ?? '').' '.($this->guest?->last_name ?? ''));
+
+        return $name !== '' ? $name : 'Anonymous';
+    }
+
+    public function getCustomerEmailAttribute(): ?string
+    {
+        return $this->user?->email ?? $this->guest?->email;
     }
 
     public function booking()

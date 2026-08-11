@@ -14,6 +14,7 @@ use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\CouponController as AdminCouponController;
 use App\Http\Controllers\Admin\ReservationController as AdminReservationController;
 use App\Http\Controllers\Admin\TaxController as AdminTaxController;
+use App\Http\Controllers\Admin\ExtraChargeController as AdminExtraChargeController;
 use App\Http\Controllers\Admin\FaqController as AdminFaqController;
 use App\Http\Controllers\Admin\FooterSettingController as AdminFooterSettingController;
 use App\Http\Controllers\Admin\HeroSettingController as AdminHeroSettingController;
@@ -26,6 +27,11 @@ use App\Http\Controllers\Admin\ContactMessageController as AdminContactMessageCo
 use App\Http\Controllers\Admin\FleetPageSettingController as AdminFleetPageSettingController;
 use App\Http\Controllers\Admin\AboutUsSettingController as AdminAboutUsSettingController;
 use App\Http\Controllers\Admin\TestimonialController as AdminTestimonialController;
+use App\Http\Controllers\Admin\LegalDocumentController as AdminLegalDocumentController;
+use App\Http\Controllers\Admin\InvoiceSettingController as AdminInvoiceSettingController;
+use App\Http\Controllers\Admin\AuditLogController as AdminAuditLogController;
+use App\Http\Controllers\Admin\ReviewController as AdminReviewController;
+use App\Http\Controllers\Admin\GuestController as AdminGuestController;
 use App\Http\Controllers\Chat\ChatController;
 use Illuminate\Support\Facades\Route;
 
@@ -64,9 +70,9 @@ Route::get('/terms-of-service', [PageController::class, 'termsOfService'])->name
 Route::get('/cookie-policy', [PageController::class, 'cookiePolicy'])->name('cookie-policy');
 Route::get('/terms-and-conditions', [PageController::class, 'termsAndConditions'])->name('terms-and-conditions');
 
-// Reviews
-Route::get('/reviews/{booking:reference_code}', [ReviewController::class, 'create'])->name('reviews.create');
-Route::post('/reviews/{booking:reference_code}', [ReviewController::class, 'store'])->name('reviews.store')->middleware('throttle:5,1');
+// Reviews (signed links only — emailed to the booking customer)
+Route::get('/reviews/{booking:reference_code}', [ReviewController::class, 'create'])->name('reviews.create')->middleware('signed');
+Route::post('/reviews/{booking:reference_code}', [ReviewController::class, 'store'])->name('reviews.store')->middleware(['signed', 'throttle:5,1']);
 
 // Authenticated user routes
 Route::middleware(['auth', 'verified'])->group(function () {
@@ -89,7 +95,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
 // Chat routes (API-like, for the widget)
 Route::get('/chat/conversations', [ChatController::class, 'conversations'])->name('chat.conversations');
-Route::get('/chat/conversations/search', [ChatController::class, 'search'])->name('chat.search');
+Route::get('/chat/conversations/search', [ChatController::class, 'search'])->name('chat.search')->middleware(['auth', 'verified', 'role:admin']);
 Route::get('/chat/conversations/{conversation}/messages', [ChatController::class, 'messages'])->name('chat.messages');
 Route::post('/chat/messages', [ChatController::class, 'store'])->name('chat.messages.store')->middleware('throttle:30,1');
 Route::post('/chat/messages/read', [ChatController::class, 'markAsRead'])->name('chat.messages.read');
@@ -122,11 +128,12 @@ Route::middleware(['auth', 'verified', 'role:admin', 'throttle:300,1'])->prefix(
     Route::get('/cars/schedule', [AdminCarController::class, 'schedule'])->name('cars.schedule');
 
     // Admin - Bookings
-    Route::get('/bookings', [AdminBookingController::class, 'index'])->name('bookings.index');
     Route::get('/bookings/{booking}', [AdminBookingController::class, 'show'])->name('bookings.show');
+    Route::get('/bookings/{booking}/invoice', [AdminBookingController::class, 'invoice'])->name('bookings.invoice');
+    Route::get('/bookings/{booking}/checkout', [AdminBookingController::class, 'checkout'])->name('bookings.checkout');
     Route::get('/bookings/{booking}/edit', [AdminBookingController::class, 'edit'])->name('bookings.edit');
     Route::patch('/bookings/{booking}', [AdminBookingController::class, 'update'])->name('bookings.update');
-    Route::patch('/bookings/{booking}/status', [AdminBookingController::class, 'updateStatus'])->name('bookings.status');
+    Route::match(['post', 'patch'], '/bookings/{booking}/status', [AdminBookingController::class, 'updateStatus'])->name('bookings.status');
     Route::post('/bookings/{booking}/payments', [AdminBookingController::class, 'recordPayment'])->name('bookings.payments.store');
     Route::patch('/bookings/{booking}/payments/{payment}', [AdminBookingController::class, 'updatePayment'])->name('bookings.payments.update');
     Route::patch('/bookings/{booking}/modify', [AdminBookingController::class, 'modify'])->name('bookings.modify');
@@ -147,6 +154,24 @@ Route::middleware(['auth', 'verified', 'role:admin', 'throttle:300,1'])->prefix(
     Route::post('/tax', [AdminTaxController::class, 'store'])->name('tax.store');
     Route::put('/tax/{tax}', [AdminTaxController::class, 'update'])->name('tax.update');
     Route::delete('/tax/{tax}', [AdminTaxController::class, 'destroy'])->name('tax.destroy');
+
+    // Admin - Extra Charges
+    Route::get('/extra-charges', [AdminExtraChargeController::class, 'index'])->name('extra-charges.index');
+    Route::post('/extra-charges', [AdminExtraChargeController::class, 'store'])->name('extra-charges.store');
+    Route::put('/extra-charges/{extraCharge}', [AdminExtraChargeController::class, 'update'])->name('extra-charges.update');
+    Route::delete('/extra-charges/{extraCharge}', [AdminExtraChargeController::class, 'destroy'])->name('extra-charges.destroy');
+
+    // Admin - Audit Logs
+    Route::get('/audit-logs', [AdminAuditLogController::class, 'index'])->name('audit-logs.index');
+
+    // Admin - Reviews Moderation
+    Route::get('/reviews', [AdminReviewController::class, 'index'])->name('reviews.index');
+    Route::patch('/reviews/{review}', [AdminReviewController::class, 'update'])->name('reviews.update');
+    Route::delete('/reviews/{review}', [AdminReviewController::class, 'destroy'])->name('reviews.destroy');
+
+    // Admin - Guests
+    Route::get('/guests', [AdminGuestController::class, 'index'])->name('guests.index');
+    Route::get('/guests/{guest}', [AdminGuestController::class, 'show'])->name('guests.show');
 
     // Admin - Account Management
     Route::get('/users', [AdminUserController::class, 'index'])->name('users.index');
@@ -183,15 +208,15 @@ Route::middleware(['auth', 'verified', 'role:admin', 'throttle:300,1'])->prefix(
     Route::delete('/testimonials/{testimonial}', [AdminTestimonialController::class, 'destroy'])->name('testimonials.destroy');
     Route::post('/testimonials/reorder', [AdminTestimonialController::class, 'reorder'])->name('testimonials.reorder');
 
-    // Admin - Footer Settings
-    Route::get('/footer-settings', [AdminFooterSettingController::class, 'index'])->name('footer-settings');
-    Route::put('/footer-settings', [AdminFooterSettingController::class, 'update'])->name('footer-settings.update');
+    // Admin - Footer Settings (Brand Settings tab in Page Customization)
+    Route::get('/footer-settings', fn () => redirect()->route('admin.hero-settings', ['page' => 'brand']))->name('footer-settings');
+    Route::post('/footer-settings', [AdminFooterSettingController::class, 'update'])->name('footer-settings.update');
 
     // Admin - Reservation Settings
-    Route::get('/reservation-settings', [AdminReservationSettingController::class, 'index'])->name('reservation-settings');
     Route::post('/reservation-settings', [AdminReservationSettingController::class, 'update'])->name('reservation-settings.update');
     Route::post('/reservation-settings/images', [AdminReservationSettingController::class, 'uploadImage'])->name('reservation-settings.images.upload');
     Route::post('/reservation-settings/images/{reservationHeroImage}', [AdminReservationSettingController::class, 'updateImage'])->name('reservation-settings.images.update');
+    Route::post('/reservation-settings/images/reorder', [AdminReservationSettingController::class, 'reorderImages'])->name('reservation-settings.images.reorder');
     Route::delete('/reservation-settings/images/{reservationHeroImage}', [AdminReservationSettingController::class, 'deleteImage'])->name('reservation-settings.images.delete');
 
     // Admin - Locations
@@ -205,6 +230,7 @@ Route::middleware(['auth', 'verified', 'role:admin', 'throttle:300,1'])->prefix(
     Route::get('/why-book', [AdminWhyBookController::class, 'index'])->name('why-book.index');
     Route::post('/why-book', [AdminWhyBookController::class, 'store'])->name('why-book.store');
     Route::put('/why-book/{whyBookItem}', [AdminWhyBookController::class, 'update'])->name('why-book.update');
+    Route::post('/why-book/reorder', [AdminWhyBookController::class, 'reorder'])->name('why-book.reorder');
     Route::delete('/why-book/{whyBookItem}', [AdminWhyBookController::class, 'destroy'])->name('why-book.destroy');
 
     // Admin - Why Choose Us
@@ -217,6 +243,14 @@ Route::middleware(['auth', 'verified', 'role:admin', 'throttle:300,1'])->prefix(
     Route::get('/contact-messages', [AdminContactMessageController::class, 'index'])->name('contact-messages.index');
     Route::patch('/contact-messages/{contactMessage}/read', [AdminContactMessageController::class, 'markAsRead'])->name('contact-messages.read');
     Route::delete('/contact-messages/{contactMessage}', [AdminContactMessageController::class, 'destroy'])->name('contact-messages.destroy');
+
+    // Admin - Agreements (Legal Documents)
+    Route::get('/agreements', [AdminLegalDocumentController::class, 'index'])->name('agreements.index');
+    Route::put('/agreements/{legalDocument}', [AdminLegalDocumentController::class, 'update'])->name('agreements.update');
+
+    // Admin - Invoice Settings
+    Route::get('/invoice-settings', [AdminInvoiceSettingController::class, 'index'])->name('invoice-settings.index');
+    Route::post('/invoice-settings', [AdminInvoiceSettingController::class, 'update'])->name('invoice-settings.update');
 
     // Admin - Live Chat
     Route::get('/chats', [ChatController::class, 'index'])->name('chats.index');
