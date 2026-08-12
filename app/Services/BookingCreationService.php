@@ -12,6 +12,8 @@ use App\Models\CouponUsage;
 use App\Models\Driver;
 use App\Models\Guest;
 use App\Models\VehicleLocation;
+use App\Notifications\AdminNewBooking;
+use App\Services\AdminNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -124,6 +126,8 @@ class BookingCreationService
             } catch (\Throwable $e) {
                 Log::warning('Broadcast failed for booking #'.$booking->id.': '.$e->getMessage());
             }
+
+            AdminNotificationService::send(new AdminNewBooking($booking));
 
             if (! auth()->check()) {
                 try {

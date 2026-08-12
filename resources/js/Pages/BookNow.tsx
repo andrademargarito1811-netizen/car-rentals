@@ -386,6 +386,11 @@ export default function BookNow({ carId, car = sampleCar, rental, booked_dates =
             });
 
             if (!res.ok) {
+                if (res.status === 429) {
+                    setPaymentError('Too many booking attempts — please wait a minute and try again.');
+                    setPaymentStep('error');
+                    return;
+                }
                 const err = await res.json();
                 setPaymentError(err.message || 'Failed to create booking.');
                 setPaymentStep('error');

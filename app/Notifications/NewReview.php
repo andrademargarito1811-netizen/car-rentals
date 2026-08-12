@@ -2,20 +2,20 @@
 
 namespace App\Notifications;
 
-use App\Models\Booking;
+use App\Models\Review;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Notifications\Messages\BroadcastMessage;
 use Illuminate\Notifications\Notification;
 
-class AdminNewBooking extends Notification implements ShouldBroadcast
+class NewReview extends Notification implements ShouldBroadcast
 {
     use Queueable;
 
-    public const TYPE = 'booking.created';
+    public const TYPE = 'review.submitted';
 
-    public function __construct(public Booking $booking) {}
+    public function __construct(public Review $review) {}
 
     public function via(object $notifiable): array
     {
@@ -24,23 +24,24 @@ class AdminNewBooking extends Notification implements ShouldBroadcast
 
     public function toArray(object $notifiable): array
     {
-        $this->booking->loadMissing(['guest', 'user', 'car']);
+        $this->review->loadMissing(['car', 'guest', 'user']);
 
-        $name = $this->booking->guest
-            ? trim($this->booking->guest->first_name.' '.$this->booking->guest->last_name)
-            : ($this->booking->user?->name ?? 'A guest');
+        $name = $this->review->user?->name
+            ?? trim(($this->review->guest?->first_name ?? '').' '.($this->review->guest?->last_name ?? ''))
+            ?: 'A customer';
 
-        $car = $this->booking->car
-            ? $this->booking->car->brand.' '.$this->booking->car->model
+        $car = $this->review->car
+            ? $this->review->car->brand.' '.$this->review->car->model
             : 'a vehicle';
 
         return [
             'type' => self::TYPE,
-            'title' => 'New booking',
-            'message' => "{$name} booked {$car} — \$".number_format((float) $this->booking->total_amount, 2),
-            'icon' => 'car',
-            'action_url' => route('admin.bookings.show', $this->booking->id),
-            'reference_code' => $this->booking->reference_code,
+            'title' => 'New review',
+            'message' => "{$name} rated {$car} {$this->review->rating}/5 — pending approval",
+            'icon' => 'star',
+            'action_url' => route('admin.reviews.index', ['status' => 'pending']),
+            'review_id' => $this->review->id,
+            'rating' => $this->review->rating,
         ];
     }
 

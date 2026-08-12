@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Events\ContactMessageSent;
 use App\Models\ContactMessage;
+use App\Notifications\NewContactMessage;
+use App\Services\AdminNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -28,6 +30,8 @@ class ContactController extends Controller
         } catch (\Throwable $e) {
             Log::warning('Failed to broadcast ContactMessageSent: ' . $e->getMessage());
         }
+
+        AdminNotificationService::send(new NewContactMessage($message));
 
         return redirect()->route('contact')->with('success', 'Your message has been sent. We\'ll get back to you shortly.');
     }

@@ -69,6 +69,20 @@ class HandleInertiaRequests extends Middleware
             'locations' => fn () => $this->remember('shared.locations', fn () => VehicleLocation::active()->orderBy('sort_order')->get()->toArray()),
             'whyBookItems' => fn () => $this->remember('shared.whyBookItems', fn () => WhyBookItem::active()->get()->toArray()),
             'unreadMessageCount' => fn () => $request->user()?->isAdmin() ? ContactMessage::where('is_read', false)->count() : null,
+            'unreadNotificationCount' => fn () => $request->user()?->isAdmin()
+                ? (int) $request->user()->unreadNotifications()->count()
+                : null,
+            'latestNotifications' => fn () => $request->user()?->isAdmin()
+                ? $request->user()->notifications()->latest()->take(5)->get()
+                    ->map(fn ($n) => [
+                        'id' => $n->id,
+                        'data' => $n->data,
+                        'read_at' => $n->read_at,
+                        'created_at' => $n->created_at,
+                    ])
+                    ->values()
+                    ->all()
+                : [],
             'chatUnreadCount' => fn () => $request->user()?->isAdmin()
                 ? Conversation::where('status', 'active')
                     ->whereHas('messages', fn ($q) =>

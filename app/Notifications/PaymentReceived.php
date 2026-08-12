@@ -3,19 +3,23 @@
 namespace App\Notifications;
 
 use App\Models\Booking;
+use App\Models\Payment;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Notifications\Messages\BroadcastMessage;
 use Illuminate\Notifications\Notification;
 
-class AdminNewBooking extends Notification implements ShouldBroadcast
+class PaymentReceived extends Notification implements ShouldBroadcast
 {
     use Queueable;
 
-    public const TYPE = 'booking.created';
+    public const TYPE = 'payment.received';
 
-    public function __construct(public Booking $booking) {}
+    public function __construct(
+        public Booking $booking,
+        public Payment $payment,
+    ) {}
 
     public function via(object $notifiable): array
     {
@@ -30,17 +34,20 @@ class AdminNewBooking extends Notification implements ShouldBroadcast
             ? trim($this->booking->guest->first_name.' '.$this->booking->guest->last_name)
             : ($this->booking->user?->name ?? 'A guest');
 
-        $car = $this->booking->car
-            ? $this->booking->car->brand.' '.$this->booking->car->model
-            : 'a vehicle';
+        $amount = (float) $this->payment->amount;
+        $isRefund = $this->payment->type === 'refund';
 
         return [
             'type' => self::TYPE,
-            'title' => 'New booking',
-            'message' => "{$name} booked {$car} — \$".number_format((float) $this->booking->total_amount, 2),
-            'icon' => 'car',
+            'title' => $isRefund ? 'Refund recorded' : 'Payment received',
+            'message' => $isRefund
+                ? "\$".number_format(abs($amount), 2)." refunded to {$name} for booking {$this->booking->reference_code}"
+                : "{$name} paid \$".number_format($amount, 2)." ({$this->payment->type}) for booking {$this->booking->reference_code}",
+            'icon' => 'banknote',
             'action_url' => route('admin.bookings.show', $this->booking->id),
             'reference_code' => $this->booking->reference_code,
+            'amount' => $amount,
+            'payment_type' => $this->payment->type,
         ];
     }
 

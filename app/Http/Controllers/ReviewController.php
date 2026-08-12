@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Booking;
 use App\Models\Review;
+use App\Notifications\NewReview;
+use App\Services\AdminNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\URL;
 use Inertia\Inertia;
@@ -51,7 +53,7 @@ class ReviewController extends Controller
             'comment' => 'nullable|string|max:2000',
         ]);
 
-        Review::create([
+        $review = Review::create([
             'booking_id' => $booking->id,
             'car_id' => $booking->car_id,
             'user_id' => $booking->user_id,
@@ -59,6 +61,8 @@ class ReviewController extends Controller
             'rating' => $validated['rating'],
             'comment' => $validated['comment'] ?? null,
         ]);
+
+        AdminNotificationService::send(new NewReview($review));
 
         return redirect()->route('bookings.guest.show', $booking->reference_code)
             ->with('success', 'Thank you! Your review has been submitted.');

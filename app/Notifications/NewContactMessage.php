@@ -2,20 +2,20 @@
 
 namespace App\Notifications;
 
-use App\Models\Booking;
+use App\Models\ContactMessage;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Notifications\Messages\BroadcastMessage;
 use Illuminate\Notifications\Notification;
 
-class AdminNewBooking extends Notification implements ShouldBroadcast
+class NewContactMessage extends Notification implements ShouldBroadcast
 {
     use Queueable;
 
-    public const TYPE = 'booking.created';
+    public const TYPE = 'contact.message';
 
-    public function __construct(public Booking $booking) {}
+    public function __construct(public ContactMessage $contactMessage) {}
 
     public function via(object $notifiable): array
     {
@@ -24,23 +24,15 @@ class AdminNewBooking extends Notification implements ShouldBroadcast
 
     public function toArray(object $notifiable): array
     {
-        $this->booking->loadMissing(['guest', 'user', 'car']);
-
-        $name = $this->booking->guest
-            ? trim($this->booking->guest->first_name.' '.$this->booking->guest->last_name)
-            : ($this->booking->user?->name ?? 'A guest');
-
-        $car = $this->booking->car
-            ? $this->booking->car->brand.' '.$this->booking->car->model
-            : 'a vehicle';
+        $name = trim($this->contactMessage->first_name.' '.$this->contactMessage->last_name);
 
         return [
             'type' => self::TYPE,
-            'title' => 'New booking',
-            'message' => "{$name} booked {$car} — \$".number_format((float) $this->booking->total_amount, 2),
-            'icon' => 'car',
-            'action_url' => route('admin.bookings.show', $this->booking->id),
-            'reference_code' => $this->booking->reference_code,
+            'title' => 'New contact message',
+            'message' => "{$name}: ".($this->contactMessage->subject ?? 'No subject'),
+            'icon' => 'mail',
+            'action_url' => route('admin.contact-messages.index'),
+            'contact_message_id' => $this->contactMessage->id,
         ];
     }
 

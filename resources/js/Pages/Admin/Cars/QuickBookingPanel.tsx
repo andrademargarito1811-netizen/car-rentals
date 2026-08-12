@@ -441,6 +441,11 @@ export default function QuickBookingPanel({ open, onClose, selectedCarIds, selec
             const allOk = results.every((r) => r.ok);
             if (!allOk) {
                 const firstError = results.find((r) => !r.ok);
+                if (firstError?.status === 429) {
+                    alert('Too many booking attempts — please wait a minute and try again.');
+                    setSubmitting(false);
+                    return;
+                }
                 const errorText = firstError ? await firstError.text() : 'Unknown error';
                 let message = 'Booking failed. ';
                 try {

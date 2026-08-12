@@ -9,6 +9,7 @@ import Breadcrumbs from '@/Components/Breadcrumbs';
 import CookieConsent from '@/Components/CookieConsent';
 import { useContactMessageBroadcast } from '@/Hooks/useContactMessageBroadcast';
 import { useChatUnreadBroadcast } from '@/Hooks/useChatUnreadBroadcast';
+import { useNotificationBroadcast } from '@/Hooks/useNotificationBroadcast';
 import { footerLogoUrl } from '@/lib/utils';
 
 interface BreadcrumbItem {
@@ -30,6 +31,7 @@ export default function AuthenticatedLayout({ header, children, breadcrumbs }: A
 
     useContactMessageBroadcast();
     useChatUnreadBroadcast();
+    useNotificationBroadcast();
     const [collapsed, setCollapsed] = useState(false);
     const [dark, setDark] = useState(() => {
         if (typeof window === 'undefined') return false;

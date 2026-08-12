@@ -9,13 +9,17 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Notifications\Messages\BroadcastMessage;
 use Illuminate\Notifications\Notification;
 
-class AdminNewBooking extends Notification implements ShouldBroadcast
+class BookingStatusChanged extends Notification implements ShouldBroadcast
 {
     use Queueable;
 
-    public const TYPE = 'booking.created';
+    public const TYPE = 'booking.status_changed';
 
-    public function __construct(public Booking $booking) {}
+    public function __construct(
+        public Booking $booking,
+        public string $oldStatus,
+        public string $newStatus,
+    ) {}
 
     public function via(object $notifiable): array
     {
@@ -36,11 +40,13 @@ class AdminNewBooking extends Notification implements ShouldBroadcast
 
         return [
             'type' => self::TYPE,
-            'title' => 'New booking',
-            'message' => "{$name} booked {$car} — \$".number_format((float) $this->booking->total_amount, 2),
-            'icon' => 'car',
+            'title' => 'Booking '.ucfirst($this->newStatus),
+            'message' => "{$name}'s {$car} rental ({$this->booking->reference_code}) changed from {$this->oldStatus} to {$this->newStatus}",
+            'icon' => 'calendar',
             'action_url' => route('admin.bookings.show', $this->booking->id),
             'reference_code' => $this->booking->reference_code,
+            'old_status' => $this->oldStatus,
+            'new_status' => $this->newStatus,
         ];
     }
 

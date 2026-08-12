@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { router, usePage } from '@inertiajs/react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
-import { Search, LayoutDashboard, Truck, Calendar, FileText, Tag, Percent, Image, Layout, MapPin, Mail, MessageCircle, Users, Car, ScrollText, Command, Receipt, Star, FileClock, UserCheck } from 'lucide-react';
+import { Search, LayoutDashboard, Truck, Calendar, FileText, Tag, Percent, Image, Layout, MapPin, Mail, MessageCircle, Users, Car, ScrollText, Command, Receipt, Star, FileClock, UserCheck, Bell } from 'lucide-react';
 
 interface NavItem {
     label: string;
@@ -14,7 +14,7 @@ interface NavItem {
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
     LayoutDashboard, Truck, Calendar, FileText, Tag, Percent, Image,
     Layout, MapPin, Mail, MessageCircle, Users, Car, ScrollText, Receipt,
-    Star, FileClock, UserCheck,
+    Star, FileClock, UserCheck, Bell,
 };
 
 const navItems: NavItem[] = [
@@ -22,6 +22,7 @@ const navItems: NavItem[] = [
     { section: 'Main', label: 'Vehicle', href: 'admin.cars.index', icon: 'Truck' },
     { section: 'Main', label: 'Booking Schedule', href: 'admin.cars.schedule', icon: 'Calendar' },
     { section: 'Main', label: 'Reservation', href: 'admin.reservations.index', icon: 'FileText' },
+    { section: 'Main', label: 'Notifications', href: 'admin.notifications.index', icon: 'Bell' },
     { section: 'Main', label: 'Live Chat', href: 'admin.chats.index', icon: 'MessageCircle' },
     { section: 'Management', label: 'Account Management', href: 'admin.users.index', icon: 'Users', group: 'Commerce' },
     { section: 'Management', label: 'Guests', href: 'admin.guests.index', icon: 'UserCheck', group: 'Commerce' },

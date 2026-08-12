@@ -3,26 +3,25 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Events\BookingUpdated;
+use App\Exceptions\BookingStatusException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ModifyBookingRequest;
-use App\Mail\BookingCompleted;
 use App\Mail\GuestBookingConfirmation;
 use App\Models\AuditLog;
 use App\Models\Booking;
 use App\Models\Car;
-use App\Models\CouponUsage;
 use App\Models\ExtraCharge;
 use App\Models\InvoiceSetting;
 use App\Models\LegalDocument;
 use App\Models\Payment;
 use App\Models\VehicleHandover;
 use App\Models\VehicleLocation;
+use App\Notifications\PaymentReceived;
+use App\Services\AdminNotificationService;
 use App\Services\BookingModificationService;
-use App\Services\CheckoutDriverService;
-use App\Services\ExtraChargeService;
-use App\Services\HandoverChargeCalculator;
+use App\Services\BookingStatusService;
 use Illuminate\Http\Request;
-use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
@@ -172,347 +171,15 @@ class BookingController extends Controller
         return redirect()->back()->with('success', 'Booking rescheduled successfully.');
     }
 
-    public function updateStatus(Request $request, Booking $booking, HandoverChargeCalculator $calculator, CheckoutDriverService $driverService, ExtraChargeService $extraChargeService)
+    public function updateStatus(Request $request, Booking $booking, BookingStatusService $statusService)
     {
-        $rules = [
-            'status' => 'required|in:confirmed,active,completed,cancelled',
-        ];
-
-        $currentStatus = $booking->status;
-
-        // Require downpayment amount when transitioning from pending to confirmed
-        if ($currentStatus === 'pending' && $request->input('status') === 'confirmed') {
-            $rules['downpayment_amount'] = 'required|numeric|min:0.01|max:'.$booking->total_amount;
-        }
-
-        // Handover capture rules: fuel + mileage when the guest takes the car
-        if ($currentStatus === 'confirmed' && $request->input('status') === 'active') {
-            $rules['pickup_fuel'] = 'required|integer|min:0|max:8';
-            $rules['pickup_odometer'] = 'required|numeric|min:0';
-            $rules['pickup_notes'] = 'nullable|string|max:1000';
-            // Require an explicit acknowledgement when no damage is marked.
-            $rules['no_damage'] = [function ($attribute, $value, $fail) use ($request) {
-                if (empty($request->input('pickup_damages')) && ! filter_var($value, FILTER_VALIDATE_BOOLEAN)) {
-                    $fail('Please confirm that the vehicle has no existing damage before check out.');
-                }
-            }];
-
-            // Driver license + company capture at check-out. Online bookings never
-            // carry license details, so they are mandatory unless a driver is
-            // already attached (e.g. admin quick-book).
-            $rules['company_name'] = 'nullable|string|max:255';
-            $rules['driver_is_renter'] = 'nullable|boolean';
-
-            $requiresDriver = ! $booking->driver_id;
-            $rules['driver_first_name'] = $requiresDriver ? 'required|string|max:255' : 'nullable|string|max:255';
-            $rules['driver_last_name'] = $requiresDriver ? 'required|string|max:255' : 'nullable|string|max:255';
-            $rules['driver_birth_date'] = ($requiresDriver ? 'required|' : 'nullable|').'date|before:'.now()->subYears(18)->format('Y-m-d');
-            $rules['license_number'] = $requiresDriver ? 'required|string|max:255' : 'nullable|string|max:255';
-            $rules['license_category'] = $requiresDriver ? 'required|string|max:50' : 'nullable|string|max:50';
-            $rules['license_expiry'] = ($requiresDriver ? 'required|' : 'nullable|').'date|after:today';
-        }
-
-        // Handover capture rules: fuel + mileage when the guest returns the car
-        $pickupHandover = $booking->pickupHandover;
-        if ($currentStatus === 'active' && $request->input('status') === 'completed') {
-            if (! $pickupHandover) {
-                return redirect()->back()->withErrors([
-                    'status' => 'A pickup handover (fuel level and odometer at pickup) must be recorded before completing this booking.',
-                ]);
-            }
-
-            $rules['return_fuel'] = 'required|integer|min:0|max:8';
-            $rules['return_odometer'] = 'required|numeric|min:'.(float) $pickupHandover->odometer;
-            $rules['return_notes'] = 'nullable|string|max:1000';
-            // Require an explicit acknowledgement when no damage is marked.
-            $rules['no_damage'] = [function ($attribute, $value, $fail) use ($request) {
-                if (empty($request->input('return_damages')) && ! filter_var($value, FILTER_VALIDATE_BOOLEAN)) {
-                    $fail('Please confirm that the vehicle has no new damage at return.');
-                }
-            }];
-
-            // Optional extra charges selected at return (e.g. CDW).
-            $rules['extra_charges'] = 'nullable|array';
-            $rules['extra_charges.*.id'] = 'required|integer|exists:extra_charges,id';
-            $rules['extra_charges.*.rate'] = 'nullable|numeric|min:0|max:999999';
-        }
-
-        // Structured damage marks for both pickup and return (optional).
-        // Each mark may carry a `photo`: either a fresh upload (UploadedFile) or a
-        // previously stored path (string) sent back on re-submission.
-        foreach (['pickup_damages', 'return_damages'] as $damageField) {
-            $rules[$damageField] = 'nullable|array';
-            $rules[$damageField.'.*.zone'] = 'required|string|max:50';
-            $rules[$damageField.'.*.type'] = 'required|string|max:50';
-            $rules[$damageField.'.*.severity'] = 'required|in:minor,moderate,severe';
-            $rules[$damageField.'.*.note'] = 'nullable|string|max:500';
-            $rules[$damageField.'.*.position'] = 'nullable|string|max:50';
-            $rules[$damageField.'.*.x'] = 'nullable|numeric|min:0|max:1';
-            $rules[$damageField.'.*.y'] = 'nullable|numeric|min:0|max:1';
-            $rules[$damageField.'.*.photo'] = ['nullable', function ($attribute, $value, $fail) {
-                if (is_string($value)) {
-                    return; // existing stored path
-                }
-                if ($value instanceof UploadedFile) {
-                    if (! $value->isValid()) {
-                        $fail('The uploaded photo is invalid.');
-
-                        return;
-                    }
-                    if (! in_array($value->getClientMimeType(), ['image/jpeg', 'image/png', 'image/webp'], true)) {
-                        $fail('The photo must be a JPG, PNG or WEBP image.');
-
-                        return;
-                    }
-                    if ($value->getSize() > 5120 * 1024) {
-                        $fail('The photo may not be greater than 5MB.');
-                    }
-
-                    return;
-                }
-                $fail('The photo is invalid.');
-            }];
-        }
-
-        // Compute pending fuel/mileage + extra charges before payment amount
-        // rules so the required payment reflects any handover charges.
-        $pendingCharges = 0.0;
-        $handoverCharges = null;
-        $returnHandover = null;
-        if ($currentStatus === 'active' && $request->input('status') === 'completed') {
-            $returnHandover = new VehicleHandover;
-            $returnHandover->booking_id = $booking->id;
-            $returnHandover->type = 'return';
-            $returnHandover->fuel_level = $request->input('return_fuel');
-            $returnHandover->odometer = $request->input('return_odometer');
-            $handoverCharges = $calculator->calculate($booking, $pickupHandover, $returnHandover);
-            $extraChargesPreview = $extraChargeService->previewTotal($booking, $request->input('extra_charges', []));
-            $pendingCharges = (float) $handoverCharges['total'] + $extraChargesPreview;
-        }
-
-        // Amount rules for confirmed → active/completed transitions
-        if ($currentStatus === 'confirmed') {
-            if ($request->input('status') === 'completed') {
-                $remaining = $booking->remainingBalance();
-                if ($remaining > 0) {
-                    $rules['amount'] = 'required|numeric|min:'.$remaining.'|max:'.$remaining;
-                } else {
-                    $rules['amount'] = 'nullable|numeric|min:0';
-                }
-            } elseif ($request->input('status') === 'active') {
-                $remaining = $booking->remainingBalance();
-                $rules['amount'] = 'nullable|numeric|min:0'.($remaining > 0 ? '|max:'.$remaining : '');
-            }
-        }
-
-        // Amount rules for active → completed transitions (includes handover charges)
-        if ($currentStatus === 'active' && $request->input('status') === 'completed') {
-            $remaining = $booking->remainingBalance() + $pendingCharges;
-            if ($remaining > 0) {
-                $rules['amount'] = 'required|numeric|min:'.$remaining.'|max:'.$remaining;
-            } else {
-                $rules['amount'] = 'nullable|numeric|min:0';
-            }
-        }
-
-        $validated = $request->validate($rules);
-
-        $allowedTransitions = [
-            'pending' => ['confirmed', 'cancelled'],
-            'confirmed' => ['active', 'cancelled'],
-            'active' => ['completed', 'cancelled'],
-            'completed' => [],
-            'cancelled' => [],
-        ];
-
-        if (! in_array($validated['status'], $allowedTransitions[$currentStatus] ?? [])) {
-            return redirect()->back()->withErrors([
-                'status' => "Cannot transition from '{$currentStatus}' to '{$validated['status']}'.",
-            ]);
-        }
-
-        $oldStatus = $booking->status;
-
-        // Record downpayment when confirming
-        if ($validated['status'] === 'confirmed' && $oldStatus !== 'confirmed') {
-            Payment::create([
-                'booking_id' => $booking->id,
-                'type' => 'downpayment',
-                'amount' => $validated['downpayment_amount'],
-                'payment_method' => $request->filled('payment_method') ? $request->input('payment_method') : 'Cash',
-                'payment_status' => 'completed',
-                'transaction_id' => 'ADM-'.strtoupper(Str::random(10)),
-            ]);
-        }
-
-        // Record payment when transitioning from confirmed to active or completed
-        if (in_array($validated['status'], ['active', 'completed']) && $oldStatus === 'confirmed') {
-            if (! empty($validated['amount']) && (float) $validated['amount'] > 0) {
-                $paymentType = $validated['status'] === 'completed' ? 'full_payment' : 'remaining';
-                Payment::create([
-                    'booking_id' => $booking->id,
-                    'type' => $paymentType,
-                    'amount' => $validated['amount'],
-                    'payment_method' => $request->filled('payment_method') ? $request->input('payment_method') : 'Cash',
-                    'payment_status' => 'completed',
-                    'transaction_id' => 'ADM-'.strtoupper(Str::random(10)),
-                ]);
-            }
-        }
-
-        // Record payment when transitioning from active to completed
-        if ($validated['status'] === 'completed' && $oldStatus === 'active') {
-            if (! empty($validated['amount']) && (float) $validated['amount'] > 0) {
-                Payment::create([
-                    'booking_id' => $booking->id,
-                    'type' => 'full_payment',
-                    'amount' => $validated['amount'],
-                    'payment_method' => $request->filled('payment_method') ? $request->input('payment_method') : 'Cash',
-                    'payment_status' => 'completed',
-                    'transaction_id' => 'ADM-'.strtoupper(Str::random(10)),
-                ]);
-            }
-        }
-
-        // If confirming a booking that used a coupon, check capacity and increment
-        if ($validated['status'] === 'confirmed' && $oldStatus !== 'confirmed') {
-            $usage = CouponUsage::where('booking_id', $booking->id)->first();
-            if ($usage && $usage->coupon) {
-                $coupon = $usage->coupon;
-                if ($coupon->max_uses !== null && $coupon->user_count >= $coupon->max_uses) {
-                    return redirect()->back()->withErrors([
-                        'status' => "Cannot confirm — coupon {$coupon->code} has reached its usage limit.",
-                    ]);
-                }
-                $coupon->increment('user_count');
-            }
-        }
-
-        // If cancelling a confirmed booking that used a coupon, decrement
-        if ($validated['status'] === 'cancelled' && $oldStatus === 'confirmed') {
-            $usage = CouponUsage::where('booking_id', $booking->id)->first();
-            if ($usage && $usage->coupon && $usage->coupon->user_count > 0) {
-                $usage->coupon->decrement('user_count');
-            }
-        }
-
-        // Record pickup handover (fuel + mileage) when the guest takes the car
-        if ($validated['status'] === 'active' && $oldStatus === 'confirmed') {
-            $driverService->save($booking, $validated);
-
-            $pickupDamages = $validated['pickup_damages'] ?? [];
-            foreach ($pickupDamages as $index => $damage) {
-                $photo = $request->file("pickup_damages.{$index}.photo");
-                if ($photo) {
-                    $pickupDamages[$index]['photo'] = $photo->store('damage-photos', 'public');
-                }
-            }
-
-            VehicleHandover::updateOrCreate(
-                ['booking_id' => $booking->id, 'type' => 'pickup'],
-                [
-                    'fuel_level' => $validated['pickup_fuel'],
-                    'odometer' => $validated['pickup_odometer'],
-                    'notes' => $validated['pickup_notes'] ?? null,
-                    'damages' => $pickupDamages,
-                    'captured_by' => auth()->id(),
-                    'captured_at' => now(),
-                ]
-            );
-        }
-
-        // Record return handover and apply fuel/mileage + extra charges when the guest returns the car
-        if ($validated['status'] === 'completed' && $oldStatus === 'active' && $returnHandover) {
-            $returnDamages = $validated['return_damages'] ?? [];
-            foreach ($returnDamages as $index => $damage) {
-                $photo = $request->file("return_damages.{$index}.photo");
-                if ($photo) {
-                    $returnDamages[$index]['photo'] = $photo->store('damage-photos', 'public');
-                }
-            }
-
-            $returnHandover->notes = $validated['return_notes'] ?? null;
-            $returnHandover->damages = $returnDamages;
-            $returnHandover->captured_by = auth()->id();
-            $returnHandover->captured_at = now();
-            $returnHandover->save();
-
-            $extraChargesResult = $extraChargeService->applyForReturn(
-                $booking,
-                $validated['extra_charges'] ?? [],
-                $returnHandover,
-            );
-
-            $totalCharges = round((float) $handoverCharges['total'] + (float) $extraChargesResult['total'], 2);
-
-            $booking->update([
-                'handover_charges' => $handoverCharges,
-                'total_amount' => round((float) $booking->total_amount + $totalCharges, 2),
-            ]);
-
-            if (! empty($extraChargesResult['charges'])) {
-                AuditLog::create([
-                    'user_id' => auth()->id(),
-                    'action' => 'extra_charges_applied',
-                    'model_type' => Booking::class,
-                    'model_id' => $booking->id,
-                    'description' => 'Extra charges applied at return for booking '.$booking->reference_code.': '.
-                        collect($extraChargesResult['charges'])->map(fn ($c) => $c->name.' ($'.number_format((float) $c->amount + (float) $c->tax_amount, 2).')')->implode(', '),
-                    'old_values' => ['total_amount' => round((float) $booking->total_amount - $totalCharges, 2)],
-                    'new_values' => ['total_amount' => $booking->total_amount],
-                    'ip_address' => $request->ip(),
-                    'user_agent' => $request->userAgent(),
-                ]);
-            }
-        }
-
-        $booking->update(['status' => $validated['status']]);
-
-        AuditLog::create([
-            'user_id' => auth()->id(),
-            'action' => 'booking_status_updated',
-            'model_type' => Booking::class,
-            'model_id' => $booking->id,
-            'description' => "Booking {$booking->reference_code} status changed from {$oldStatus} to {$validated['status']}",
-            'old_values' => ['status' => $oldStatus],
-            'new_values' => ['status' => $validated['status']],
-            'ip_address' => $request->ip(),
-            'user_agent' => $request->userAgent(),
-        ]);
-
         try {
-            event(new BookingUpdated($booking));
-        } catch (\Throwable $e) {
-            Log::warning('Broadcast failed: '.$e->getMessage());
-        }
+            $statusService->transition($request, $booking);
 
-        // Send confirmation email when transitioning from pending to confirmed
-        if ($validated['status'] === 'confirmed' && $oldStatus === 'pending') {
-            try {
-                $recipient = $booking->guest?->email ?? $booking->user?->email;
-                if ($recipient) {
-                    $booking->load(['guest', 'car', 'pickupLocation', 'returnLocation', 'payment']);
-                    Mail::to($recipient)->queue(new GuestBookingConfirmation($booking));
-                }
-            } catch (\Throwable $e) {
-                Log::warning('Confirmation email failed for booking #'.$booking->id.': '.$e->getMessage());
-            }
+            return redirect()->back()->with('success', 'Booking status updated successfully.');
+        } catch (BookingStatusException $e) {
+            return redirect()->back()->withErrors(['status' => $e->getMessage()]);
         }
-
-        // Send thank you email with review link when transitioning to completed
-        if ($validated['status'] === 'completed' && $oldStatus !== 'completed') {
-            try {
-                $recipient = $booking->guest?->email ?? $booking->user?->email;
-                if ($recipient) {
-                    $booking->load(['guest', 'user', 'car']);
-                    Mail::to($recipient)->queue(new BookingCompleted($booking));
-                }
-            } catch (\Throwable $e) {
-                Log::warning('Thank you email failed for booking #'.$booking->id.': '.$e->getMessage());
-            }
-        }
-
-        return redirect()->back()->with('success', 'Booking status updated successfully.');
     }
 
     public function recordPayment(Request $request, Booking $booking)
@@ -563,42 +230,50 @@ class BookingController extends Controller
             }
         }
 
-        $payment = Payment::create([
-            'booking_id' => $booking->id,
-            'type' => $validated['type'],
-            'amount' => $isRefund ? -1 * (float) $validated['amount'] : $validated['amount'],
-            'payment_method' => $validated['payment_method'],
-            'transaction_id' => $validated['transaction_id'] ?? 'ADM-'.strtoupper(Str::random(10)),
-            'payment_status' => 'completed',
-        ]);
+        $shouldConfirm = $booking->status === 'pending' && in_array($validated['type'], ['downpayment', 'full_payment']);
 
-        AuditLog::create([
-            'user_id' => auth()->id(),
-            'action' => $isRefund ? 'refund_recorded' : 'payment_recorded',
-            'model_type' => Payment::class,
-            'model_id' => $payment->id,
-            'description' => ($isRefund ? 'Refund of' : 'Payment of')." \${$validated['amount']} ({$validated['type']}) recorded for booking {$booking->reference_code}",
-            'old_values' => [],
-            'new_values' => $validated,
-            'ip_address' => $request->ip(),
-            'user_agent' => $request->userAgent(),
-        ]);
+        $payment = null;
 
-        if ($booking->status === 'pending' && in_array($validated['type'], ['downpayment', 'full_payment'])) {
-            $booking->update(['status' => 'confirmed']);
+        DB::transaction(function () use ($request, $booking, $validated, $isRefund, $shouldConfirm, &$payment) {
+            $payment = Payment::create([
+                'booking_id' => $booking->id,
+                'type' => $validated['type'],
+                'amount' => $isRefund ? -1 * (float) $validated['amount'] : $validated['amount'],
+                'payment_method' => $validated['payment_method'],
+                'transaction_id' => $validated['transaction_id'] ?? 'ADM-'.strtoupper(Str::random(10)),
+                'payment_status' => 'completed',
+            ]);
 
             AuditLog::create([
                 'user_id' => auth()->id(),
-                'action' => 'status_updated',
-                'model_type' => Booking::class,
-                'model_id' => $booking->id,
-                'description' => "Booking status updated from pending to confirmed ({$validated['type']} recorded)",
-                'old_values' => ['status' => 'pending'],
-                'new_values' => ['status' => 'confirmed'],
+                'action' => $isRefund ? 'refund_recorded' : 'payment_recorded',
+                'model_type' => Payment::class,
+                'model_id' => $payment->id,
+                'description' => ($isRefund ? 'Refund of' : 'Payment of')." \${$validated['amount']} ({$validated['type']}) recorded for booking {$booking->reference_code}",
+                'old_values' => [],
+                'new_values' => $validated,
                 'ip_address' => $request->ip(),
                 'user_agent' => $request->userAgent(),
             ]);
 
+            if ($shouldConfirm) {
+                $booking->update(['status' => 'confirmed']);
+
+                AuditLog::create([
+                    'user_id' => auth()->id(),
+                    'action' => 'status_updated',
+                    'model_type' => Booking::class,
+                    'model_id' => $booking->id,
+                    'description' => "Booking status updated from pending to confirmed ({$validated['type']} recorded)",
+                    'old_values' => ['status' => 'pending'],
+                    'new_values' => ['status' => 'confirmed'],
+                    'ip_address' => $request->ip(),
+                    'user_agent' => $request->userAgent(),
+                ]);
+            }
+        });
+
+        if ($shouldConfirm) {
             try {
                 $recipient = $booking->guest?->email ?? $booking->user?->email;
                 if ($recipient) {
@@ -608,6 +283,10 @@ class BookingController extends Controller
             } catch (\Throwable $e) {
                 Log::warning('Confirmation email failed for booking #'.$booking->id.': '.$e->getMessage());
             }
+        }
+
+        if ($payment) {
+            AdminNotificationService::send(new PaymentReceived($booking, $payment));
         }
 
         return redirect()->back()->with('success', 'Payment recorded successfully.');
@@ -642,7 +321,7 @@ class BookingController extends Controller
             $totalRefundsAfter = $otherRefundsTotal + (float) $validated['amount'];
             if ($refundable + $totalRefundsAfter < 0) {
                 return redirect()->back()->withErrors([
-                    'amount' => "Refund \$".number_format(abs($validated['amount']), 2).' exceeds the refundable amount of $'.number_format(max(0, $refundable + $otherRefundsTotal), 2),
+                    'amount' => 'Refund $'.number_format(abs($validated['amount']), 2).' exceeds the refundable amount of $'.number_format(max(0, $refundable + $otherRefundsTotal), 2),
                 ]);
             }
         }

@@ -32,6 +32,7 @@ use App\Http\Controllers\Admin\InvoiceSettingController as AdminInvoiceSettingCo
 use App\Http\Controllers\Admin\AuditLogController as AdminAuditLogController;
 use App\Http\Controllers\Admin\ReviewController as AdminReviewController;
 use App\Http\Controllers\Admin\GuestController as AdminGuestController;
+use App\Http\Controllers\Admin\NotificationController as AdminNotificationController;
 use App\Http\Controllers\Chat\ChatController;
 use Illuminate\Support\Facades\Route;
 
@@ -62,7 +63,7 @@ Route::post('/taxes/calculate', [TaxCalculationController::class, 'calculate'])-
 Route::post('/cars/check-availability', [CarController::class, 'checkAvailability'])->name('cars.check-availability')->middleware('throttle:30,1');
 
 // Guest reservation submission (from BookNow.tsx / Reservation.tsx)
-Route::post('/reservations', [BookingController::class, 'storeGuest'])->name('reservations.store')->middleware('throttle:3,1');
+Route::post('/reservations', [BookingController::class, 'storeGuest'])->name('reservations.store')->middleware('throttle:10,1');
 
 // Legal pages
 Route::get('/privacy-policy', [PageController::class, 'privacyPolicy'])->name('privacy-policy');
@@ -264,6 +265,12 @@ Route::middleware(['auth', 'verified', 'role:admin', 'throttle:300,1'])->prefix(
     Route::post('/vehicle-classes', [\App\Http\Controllers\Admin\VehicleClassController::class, 'store'])->name('vehicle-classes.store');
     Route::put('/vehicle-classes/{vehicleClass}', [\App\Http\Controllers\Admin\VehicleClassController::class, 'update'])->name('vehicle-classes.update');
     Route::delete('/vehicle-classes/{vehicleClass}', [\App\Http\Controllers\Admin\VehicleClassController::class, 'destroy'])->name('vehicle-classes.destroy');
+
+    // Admin - Notifications
+    Route::get('/notifications', [AdminNotificationController::class, 'index'])->name('notifications.index');
+    Route::patch('/notifications/{notification}/read', [AdminNotificationController::class, 'markAsRead'])->name('notifications.read');
+    Route::post('/notifications/read-all', [AdminNotificationController::class, 'markAllAsRead'])->name('notifications.read-all');
+    Route::delete('/notifications/{notification}', [AdminNotificationController::class, 'destroy'])->name('notifications.destroy');
 });
 
 require __DIR__.'/auth.php';

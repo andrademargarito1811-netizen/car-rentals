@@ -2,10 +2,11 @@ import { useState, useMemo } from 'react';
 import { Link, usePage } from '@inertiajs/react';
 import Dropdown from '@/Components/Dropdown';
 import DropdownLink from '@/Components/DropdownLink';
+import NotificationBell from '@/Components/NotificationBell';
 import {
     LayoutDashboard, Truck, Calendar, FileText, Tag, Percent, Image,
     Layout, MapPin, Mail,     MessageCircle, Users, Car,
-    ScrollText, Receipt, ChevronDown, Star, FileClock, UserCheck,
+    ScrollText, Receipt, ChevronDown, Star, FileClock, UserCheck, Bell,
 } from 'lucide-react';
 import { footerLogoUrl } from '@/lib/utils';
 
@@ -21,13 +22,14 @@ interface NavItem {
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
     LayoutDashboard, Truck, Calendar, FileText, Tag, Percent, Image,
     Layout, MapPin, Mail, MessageCircle, Users, Car, ScrollText, Receipt,
-    Star, FileClock, UserCheck,
+    Star, FileClock, UserCheck, Bell,
 };
 
 const navItems: NavItem[] = [
     { section: 'Main', label: 'Dashboard', href: 'dashboard', icon: 'LayoutDashboard' },
     { section: 'Main', label: 'Reservation', href: 'admin.reservations.index', icon: 'FileText', admin: true },
     { section: 'Main', label: 'Booking Schedule', href: 'admin.cars.schedule', icon: 'Calendar', admin: true },
+    { section: 'Main', label: 'Notifications', href: 'admin.notifications.index', icon: 'Bell', admin: true },
     { section: 'Main', label: 'Live Chat', href: 'admin.chats.index', icon: 'MessageCircle', admin: true },
     { section: 'Management', label: 'Vehicle', href: 'admin.cars.index', icon: 'Truck', admin: true, group: 'Catalog' },
     { section: 'Management', label: 'Vehicle Classes', href: 'admin.vehicle-classes.index', icon: 'Car', admin: true, group: 'Catalog' },
@@ -55,13 +57,14 @@ interface AdminSidebarProps {
 }
 
 export default function AdminSidebar({ collapsed, onToggleCollapse, sidebarOpen, onCloseSidebar, dark, onToggleDark }: AdminSidebarProps) {
-    const { auth, unreadMessageCount, chatUnreadCount, footerSettings } = usePage().props as any;
+    const { auth, unreadMessageCount, chatUnreadCount, unreadNotificationCount, footerSettings } = usePage().props as any;
     const brandName = footerSettings?.brand_name || 'West Car Rental';
     const brandTagline = footerSettings?.brand_tagline || 'Crafted for the Open Road';
     const logoUrl = footerLogoUrl(footerSettings?.logo_path);
     const isAdmin = auth?.user?.role === 'admin';
     const unreadCount = (unreadMessageCount as number) || 0;
     const chatUnread = (chatUnreadCount as number) || 0;
+    const notifUnread = (unreadNotificationCount as number) || 0;
     const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
 
     const toggleGroup = (group: string) => {
@@ -157,7 +160,15 @@ export default function AdminSidebar({ collapsed, onToggleCollapse, sidebarOpen,
                         <span className={`ml-auto inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 text-[10px] font-bold rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-500/30 ${collapsed ? 'hidden' : ''}`}>
                             {chatUnread > 99 ? '99+' : chatUnread}
                         </span>
-                        <span className={`absolute top-1 right-1 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-brand-900 animate-pulse ${collapsed ? '' : 'hidden'}`} />
+                        <span className={`absolute top-1 right-1 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-brand-900 animate-pulse ${collapsed ? 'hidden' : ''}`} />
+                    </>
+                )}
+                {item.label === 'Notifications' && notifUnread > 0 && (
+                    <>
+                        <span className={`ml-auto inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 text-[10px] font-bold rounded-full bg-red-500/15 text-red-600 dark:text-red-400 ring-1 ring-red-500/30 ${collapsed ? 'hidden' : ''}`}>
+                            {notifUnread > 99 ? '99+' : notifUnread}
+                        </span>
+                        <span className={`absolute top-1 right-1 w-2 h-2 rounded-full bg-red-500 ring-2 ring-white dark:ring-brand-900 animate-pulse ${collapsed ? 'hidden' : ''}`} />
                     </>
                 )}
             </Link>
@@ -251,6 +262,7 @@ export default function AdminSidebar({ collapsed, onToggleCollapse, sidebarOpen,
             <div className="relative shrink-0 overflow-visible">
                 <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-surface-200 dark:via-surface-700 to-transparent" />
                 <div className="px-3 py-3 space-y-1.5">
+                    {isAdmin && <NotificationBell collapsed={collapsed} />}
                     <button
                         onClick={onToggleDark}
                         className={`flex items-center w-full px-3 py-2.5 rounded-xl text-sm font-medium text-surface-500 dark:text-surface-400 hover:bg-surface-50 dark:hover:bg-surface-800/60 hover:text-surface-900 dark:hover:text-white transition-all duration-200 group ${
