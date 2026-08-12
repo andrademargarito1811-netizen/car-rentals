@@ -1,9 +1,10 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, router, usePage } from '@inertiajs/react';
 import {
     Bell, Car, Mail, Star, Banknote, Calendar, CheckCheck, Inbox, ArrowRight,
 } from 'lucide-react';
 import { Popover, PopoverTrigger, PopoverContent } from '@/Components/ui/popover';
+import { categoryOf, CATEGORY_META } from '@/lib/notifications';
 
 interface NotificationItem {
     id: string;
@@ -40,6 +41,37 @@ function timeAgo(dateStr: string): string {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
+type DayGroup = 'today' | 'yesterday' | 'week' | 'earlier';
+
+const DAY_GROUP_LABELS: Record<DayGroup, string> = {
+    today: 'Today',
+    yesterday: 'Yesterday',
+    week: 'This Week',
+    earlier: 'Earlier',
+};
+
+function dayGroupOf(dateStr: string): DayGroup {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const dayDiff = Math.round((startOfToday.getTime() - startOfDate.getTime()) / 86400000);
+    if (dayDiff <= 0) return 'today';
+    if (dayDiff === 1) return 'yesterday';
+    if (dayDiff < 7) return 'week';
+    return 'earlier';
+}
+
+function groupByDay(items: NotificationItem[]): Array<{ group: DayGroup; items: NotificationItem[] }> {
+    const map: Record<DayGroup, NotificationItem[]> = { today: [], yesterday: [], week: [], earlier: [] };
+    for (const item of items) {
+        map[dayGroupOf(item.created_at)].push(item);
+    }
+    return (Object.keys(DAY_GROUP_LABELS) as DayGroup[])
+        .map((group) => ({ group, items: map[group] }))
+        .filter((g) => g.items.length > 0);
+}
+
 export default function NotificationBell({ collapsed = false }: { collapsed?: boolean }) {
     const { auth, unreadNotificationCount, latestNotifications } = usePage().props as {
         auth: { user: { role: string } | null };
@@ -49,6 +81,34 @@ export default function NotificationBell({ collapsed = false }: { collapsed?: bo
 
     const unread = unreadNotificationCount ?? 0;
     const notifications = latestNotifications ?? [];
+    const dayGroups = useMemo(() => groupByDay(notifications), [notifications]);
+
+    const prevUnreadRef = useRef(unread);
+    const prevNewestIdRef = useRef<string | undefined>(undefined);
+    const [wiggling, setWiggling] = useState(false);
+    const [newestId, setNewestId] = useState<string | undefined>(undefined);
+
+    useEffect(() => {
+        if (unread > prevUnreadRef.current) {
+            setWiggling(true);
+            const t = setTimeout(() => setWiggling(false), 800);
+            return () => clearTimeout(t);
+        }
+    }, [unread]);
+
+    useEffect(() => {
+        prevUnreadRef.current = unread;
+    }, [unread]);
+
+    useEffect(() => {
+        const newest = notifications[0]?.id;
+        if (newest && newest !== prevNewestIdRef.current) {
+            prevNewestIdRef.current = newest;
+            setNewestId(newest);
+            const t = setTimeout(() => setNewestId(undefined), 1500);
+            return () => clearTimeout(t);
+        }
+    }, [notifications]);
 
     const markAsRead = (item: NotificationItem) => {
         if (!item.read_at) {
@@ -88,7 +148,7 @@ export default function NotificationBell({ collapsed = false }: { collapsed?: bo
                     }`}
                 >
                     <span className="relative shrink-0">
-                        <Bell className="w-5 h-5 group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors" />
+                        <Bell className={`w-5 h-5 group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors ${wiggling ? 'animate-notification-bell' : ''}`} />
                         {unread > 0 && (
                             <span className="absolute -top-1.5 -right-1.5 inline-flex items-center justify-center min-w-[1.125rem] h-[1.125rem] px-1 text-[9px] font-bold rounded-full bg-red-500 text-white ring-2 ring-white dark:ring-brand-900">
                                 {unread > 99 ? '99+' : unread}
@@ -138,34 +198,48 @@ export default function NotificationBell({ collapsed = false }: { collapsed?: bo
                             <p className="text-xs text-surface-400 dark:text-surface-500 mt-1">Updates will appear here.</p>
                         </div>
                     ) : (
-                        notifications.map((item, i) => {
-                            const Icon = ICON_MAP[item.data.icon ?? 'bell'] ?? Bell;
-                            return (
-                                <button
-                                    key={item.id}
-                                    onClick={() => markAsRead(item)}
-                                    className={`flex items-start gap-3 w-full px-4 py-3 text-left hover:bg-surface-50 dark:hover:bg-brand-900/30 transition-colors duration-150 ${
-                                        item.read_at ? '' : 'bg-brand-50/40 dark:bg-brand-900/20'
-                                    }`}
-                                >
-                                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${iconClasses[i % iconClasses.length]}`}>
-                                        <Icon className="w-4 h-4" />
-                                    </div>
-                                    <div className="min-w-0 flex-1">
-                                        <div className="flex items-center justify-between gap-2">
-                                            <p className={`text-xs font-semibold truncate ${item.read_at ? 'text-surface-700 dark:text-surface-300' : 'text-surface-900 dark:text-white'}`}>
-                                                {item.data.title}
-                                            </p>
-                                            {!item.read_at && <span className="w-2 h-2 rounded-full bg-brand-500 shrink-0" />}
-                                        </div>
-                                        <p className={`text-xs mt-0.5 line-clamp-2 ${item.read_at ? 'text-surface-400 dark:text-surface-500' : 'text-surface-500 dark:text-surface-400'}`}>
-                                            {item.data.message}
-                                        </p>
-                                        <p className="text-[10px] text-surface-400 dark:text-surface-500 mt-1">{timeAgo(item.created_at)}</p>
-                                    </div>
-                                </button>
-                            );
-                        })
+                        dayGroups.map(({ group, items: groupItems }) => (
+                            <div key={group}>
+                                <div className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-surface-400 dark:text-surface-500">
+                                    {DAY_GROUP_LABELS[group]}
+                                </div>
+                                {groupItems.map((item, i) => {
+                                    const Icon = ICON_MAP[item.data.icon ?? 'bell'] ?? Bell;
+                                    const category = categoryOf(item.data.type);
+                                    const meta = CATEGORY_META[category];
+                                    return (
+                                        <button
+                                            key={item.id}
+                                            onClick={() => markAsRead(item)}
+                                            className={`flex items-start gap-3 w-full px-4 py-3 text-left hover:bg-surface-50 dark:hover:bg-brand-900/30 transition-colors duration-150 ${
+                                                item.read_at ? '' : 'bg-brand-50/40 dark:bg-brand-900/20'
+                                            } ${item.id === newestId ? 'animate-notification-arrive' : ''}`}
+                                        >
+                                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${iconClasses[i % iconClasses.length]}`}>
+                                                <Icon className="w-4 h-4" />
+                                            </div>
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <p className={`text-xs font-semibold truncate ${item.read_at ? 'text-surface-700 dark:text-surface-300' : 'text-surface-900 dark:text-white'}`}>
+                                                        {item.data.title}
+                                                    </p>
+                                                    {!item.read_at && <span className="w-2 h-2 rounded-full bg-brand-500 shrink-0" />}
+                                                </div>
+                                                <p className={`text-xs mt-0.5 line-clamp-2 ${item.read_at ? 'text-surface-400 dark:text-surface-500' : 'text-surface-500 dark:text-surface-400'}`}>
+                                                    {item.data.message}
+                                                </p>
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <span className={`inline-flex items-center px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide rounded-md ring-1 ${meta.chip}`}>
+                                                        {meta.label}
+                                                    </span>
+                                                    <span className="text-[10px] text-surface-400 dark:text-surface-500">{timeAgo(item.created_at)}</span>
+                                                </div>
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        ))
                     )}
                 </div>
 

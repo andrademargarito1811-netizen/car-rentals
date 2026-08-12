@@ -6,7 +6,7 @@ import NotificationBell from '@/Components/NotificationBell';
 import {
     LayoutDashboard, Truck, Calendar, FileText, Tag, Percent, Image,
     Layout, MapPin, Mail,     MessageCircle, Users, Car,
-    ScrollText, Receipt, ChevronDown, Star, FileClock, UserCheck, Bell,
+    ScrollText, Receipt, ChevronDown, Star, FileClock, UserCheck,
 } from 'lucide-react';
 import { footerLogoUrl } from '@/lib/utils';
 
@@ -22,14 +22,13 @@ interface NavItem {
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
     LayoutDashboard, Truck, Calendar, FileText, Tag, Percent, Image,
     Layout, MapPin, Mail, MessageCircle, Users, Car, ScrollText, Receipt,
-    Star, FileClock, UserCheck, Bell,
+    Star, FileClock, UserCheck,
 };
 
 const navItems: NavItem[] = [
     { section: 'Main', label: 'Dashboard', href: 'dashboard', icon: 'LayoutDashboard' },
     { section: 'Main', label: 'Reservation', href: 'admin.reservations.index', icon: 'FileText', admin: true },
     { section: 'Main', label: 'Booking Schedule', href: 'admin.cars.schedule', icon: 'Calendar', admin: true },
-    { section: 'Main', label: 'Notifications', href: 'admin.notifications.index', icon: 'Bell', admin: true },
     { section: 'Main', label: 'Live Chat', href: 'admin.chats.index', icon: 'MessageCircle', admin: true },
     { section: 'Management', label: 'Vehicle', href: 'admin.cars.index', icon: 'Truck', admin: true, group: 'Catalog' },
     { section: 'Management', label: 'Vehicle Classes', href: 'admin.vehicle-classes.index', icon: 'Car', admin: true, group: 'Catalog' },

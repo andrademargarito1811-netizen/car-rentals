@@ -270,6 +270,8 @@ Route::middleware(['auth', 'verified', 'role:admin', 'throttle:300,1'])->prefix(
     Route::get('/notifications', [AdminNotificationController::class, 'index'])->name('notifications.index');
     Route::patch('/notifications/{notification}/read', [AdminNotificationController::class, 'markAsRead'])->name('notifications.read');
     Route::post('/notifications/read-all', [AdminNotificationController::class, 'markAllAsRead'])->name('notifications.read-all');
+    Route::post('/notifications/read-bulk', [AdminNotificationController::class, 'bulkMarkAsRead'])->name('notifications.read-bulk');
+    Route::post('/notifications/delete-bulk', [AdminNotificationController::class, 'bulkDestroy'])->name('notifications.delete-bulk');
     Route::delete('/notifications/{notification}', [AdminNotificationController::class, 'destroy'])->name('notifications.destroy');
 });
 
