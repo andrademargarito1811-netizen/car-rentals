@@ -39,18 +39,22 @@ pipeline {
         stage('Backup & Copy Files') {
             steps {
                 bat """
-                    if exist "%WEBROOT%" (
-                        if exist "%WEBROOT%\\.env" copy "%WEBROOT%\\.env" "%WORKSPACE%\\.env_backup"
-                        if exist "%WEBROOT%\\storage\\app" xcopy /E /I /Y "%WEBROOT%\\storage\\app" "%WORKSPACE%\\storage_app_backup\\"
-                        rmdir /S /Q "%WEBROOT%"
-                    )
-                    xcopy /E /I /Y "." "%WEBROOT%"
-                    if exist "%WORKSPACE%\\.env_backup" (
-                        move /Y "%WORKSPACE%\\.env_backup" "%WEBROOT%\\.env"
-                    )
-                    if exist "%WORKSPACE%\\storage_app_backup" (
-                        xcopy /E /I /Y "%WORKSPACE%\\storage_app_backup\\" "%WEBROOT%\\storage\\app\\"
-                        rmdir /S /Q "%WORKSPACE%\\storage_app_backup"
+                    for %%A in ("%WORKSPACE%") do set "WS=%%~fA"
+                    for %%A in ("%WEBROOT%") do set "WR=%%~fA"
+                    if /I not "%WS%" == "%WR%" (
+                        if exist "%WEBROOT%" (
+                            if exist "%WEBROOT%\\.env" copy "%WEBROOT%\\.env" "%WORKSPACE%\\.env_backup"
+                            if exist "%WEBROOT%\\storage\\app" xcopy /E /I /Y "%WEBROOT%\\storage\\app" "%WORKSPACE%\\storage_app_backup\\"
+                            rmdir /S /Q "%WEBROOT%"
+                        )
+                        xcopy /E /I /Y "." "%WEBROOT%"
+                        if exist "%WORKSPACE%\\.env_backup" (
+                            move /Y "%WORKSPACE%\\.env_backup" "%WEBROOT%\\.env"
+                        )
+                        if exist "%WORKSPACE%\\storage_app_backup" (
+                            xcopy /E /I /Y "%WORKSPACE%\\storage_app_backup\\" "%WEBROOT%\\storage\\app\\"
+                            rmdir /S /Q "%WORKSPACE%\\storage_app_backup"
+                        )
                     )
                     icacls "%WEBROOT%\\storage" /grant "Users:(OI)(CI)M" /Q
                 """
