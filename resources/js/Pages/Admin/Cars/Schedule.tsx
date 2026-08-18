@@ -56,6 +56,7 @@ interface ScheduleProps {
     cars: Car[];
     locations?: Location[];
     bookingTerms?: string | null;
+    initialCarId?: number | null;
 }
 
 const MULTI_CAR_COLORS = [
@@ -178,14 +179,17 @@ function heatmapIntensity(count: number): string {
     return 'bg-gradient-to-b from-accent-400/60 to-transparent dark:from-accent-400/20';
 }
 
-export default function Schedule({ cars, locations, bookingTerms }: ScheduleProps) {
+export default function Schedule({ cars, locations, bookingTerms, initialCarId = null }: ScheduleProps) {
     const route = useRoute();
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const todayIso = toLocalDateStr(today);
 
     const [selectedCarIds, setSelectedCarIds] = useState<number[]>(
-        () => (cars.length > 0 ? [cars[0].id] : [])
+        () => {
+            const fromUrl = initialCarId && cars.some((c) => c.id === initialCarId) ? [initialCarId] : [];
+            return fromUrl.length > 0 ? fromUrl : (cars.length > 0 ? [cars[0].id] : []);
+        }
     );
     const [selectedDate, setSelectedDate] = useState<string>(todayIso);
     const [currentMonth, setCurrentMonth] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
@@ -317,6 +321,22 @@ export default function Schedule({ cars, locations, bookingTerms }: ScheduleProp
     useEffect(() => {
         localStorage.setItem('car_schedule_favs', JSON.stringify(favorites));
     }, [favorites]);
+
+    // Preselect the car requested via ?car= when the page (re)loads.
+    useEffect(() => {
+        if (initialCarId && cars.some((c) => c.id === initialCarId)) {
+            setSelectedCarIds([initialCarId]);
+        }
+    }, [initialCarId, cars]);
+
+    // Bring the requested car into view.
+    useEffect(() => {
+        if (!initialCarId) return;
+        const id = window.setTimeout(() => {
+            document.querySelector(`[data-car-id="${initialCarId}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }, 300);
+        return () => window.clearTimeout(id);
+    }, [initialCarId]);
 
     useEffect(() => {
         if (!showColorLegend && !showNotifications) return;
@@ -762,6 +782,7 @@ export default function Schedule({ cars, locations, bookingTerms }: ScheduleProp
                                                                 return (
                                                                     <button
                                                                         key={car.id}
+                                                                        data-car-id={car.id}
                                                                         onClick={(e) => toggleCarSelection(car.id, e)}
                                                                         className="w-full text-left transition-all duration-200"
                                                                     >

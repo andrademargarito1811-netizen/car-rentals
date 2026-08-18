@@ -129,7 +129,10 @@ class Car extends Model
         $graceMinutes = $this->getGraceMinutes();
 
         if ($this->relationLoaded('bookings')) {
-            $bookings = $this->bookings;
+            $bookings = $this->bookings
+                ->whereIn('status', ['confirmed', 'active'])
+                ->where('end_date', '>=', $today)
+                ->where('start_date', '<=', $end);
         } else {
             $bookings = $this->bookings()
                 ->whereIn('status', ['confirmed', 'active'])
@@ -195,10 +198,15 @@ class Car extends Model
         $h = (int) ($parts[0] ?? 0);
         $m = (int) ($parts[1] ?? 0);
         $total = $h * 60 + $m + $minutes;
-        $h = intdiv($total, 60);
-        $m = $total % 60;
 
-        return sprintf('%02d:%02d', min($h, 23), $m);
+        // When the grace period rolls into the next day the car is not free
+        // again within this day — clamp to end-of-day instead of producing a
+        // time earlier than the return (which would falsely mark it available).
+        if ($total >= 24 * 60) {
+            return '23:59';
+        }
+
+        return sprintf('%02d:%02d', intdiv($total, 60), $total % 60);
     }
 
     private function mergeBookedDate(array &$result, array $entry): void

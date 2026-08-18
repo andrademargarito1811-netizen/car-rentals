@@ -11,9 +11,7 @@ class WhyChooseUsController extends Controller
 {
     public function index()
     {
-        $items = WhyChooseUsItem::orderBy('sort_order')->orderBy('created_at', 'desc')->paginate(20);
-
-        return response()->json($items);
+        return redirect()->route('admin.hero-settings', ['page' => 'home']);
     }
 
     public function store(Request $request)

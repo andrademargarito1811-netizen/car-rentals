@@ -198,7 +198,7 @@ class DashboardController extends Controller
         $start = $since
             ? $bucket($since)
             : $bucket($first ? Carbon::parse($first->created_at) : $today->copy()->subMonths(12));
-        $endBucket = $bucket($today);
+        $endBucket = $bucket($period === 'today' ? Carbon::now() : $today);
 
         $result = [];
         $cursor = $start;

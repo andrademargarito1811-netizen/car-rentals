@@ -45,6 +45,7 @@ class HandoverChargeCalculatorTest extends TestCase
     {
         return VehicleHandover::create([
             'booking_id' => $booking->id,
+            'car_id' => $booking->car_id,
             'type' => $type,
             'fuel_level' => $fuel,
             'odometer' => $odometer,
@@ -57,7 +58,7 @@ class HandoverChargeCalculatorTest extends TestCase
         $pickup = $this->makeHandover($booking, 'pickup', 8, 1000);
         $return = $this->makeHandover($booking, 'return', 8, 1190);
 
-        $charges = $this->service->calculate($booking, $pickup, $return);
+        $charges = $this->service->calculate($booking);
 
         $this->assertEquals(0, $charges['fuel_refuel']);
         $this->assertEquals(0, $charges['excess_mileage']);
@@ -70,7 +71,7 @@ class HandoverChargeCalculatorTest extends TestCase
         $pickup = $this->makeHandover($booking, 'pickup', 8, 1000);
         $return = $this->makeHandover($booking, 'return', 5, 1080);
 
-        $charges = $this->service->calculate($booking, $pickup, $return);
+        $charges = $this->service->calculate($booking);
 
         $this->assertEquals(45.00, $charges['fuel_refuel']);
         $this->assertEquals(0, $charges['excess_mileage']);
@@ -83,7 +84,7 @@ class HandoverChargeCalculatorTest extends TestCase
         $pickup = $this->makeHandover($booking, 'pickup', 8, 1000);
         $return = $this->makeHandover($booking, 'return', 8, 1080);
 
-        $charges = $this->service->calculate($booking, $pickup, $return);
+        $charges = $this->service->calculate($booking);
 
         $this->assertEquals(0, $charges['fuel_refuel']);
     }
@@ -94,7 +95,7 @@ class HandoverChargeCalculatorTest extends TestCase
         $pickup = $this->makeHandover($booking, 'pickup', 8, 1000);
         $return = $this->makeHandover($booking, 'return', 7, 1080);
 
-        $charges = $this->service->calculate($booking, $pickup, $return);
+        $charges = $this->service->calculate($booking);
 
         $this->assertEquals(0, $charges['fuel_refuel']);
     }
@@ -105,7 +106,7 @@ class HandoverChargeCalculatorTest extends TestCase
         $pickup = $this->makeHandover($booking, 'pickup', 8, 1000);
         $return = $this->makeHandover($booking, 'return', 6, 1080);
 
-        $charges = $this->service->calculate($booking, $pickup, $return);
+        $charges = $this->service->calculate($booking);
 
         $this->assertEquals(45.00, $charges['fuel_refuel']);
     }
@@ -116,7 +117,7 @@ class HandoverChargeCalculatorTest extends TestCase
         $pickup = $this->makeHandover($booking, 'pickup', 8, 1000);
         $return = $this->makeHandover($booking, 'return', 8, 1250);
 
-        $charges = $this->service->calculate($booking, $pickup, $return);
+        $charges = $this->service->calculate($booking);
 
         $freeKm = 100 * 2;
         $excessKm = 250 - $freeKm;
@@ -132,7 +133,7 @@ class HandoverChargeCalculatorTest extends TestCase
         $pickup = $this->makeHandover($booking, 'pickup', 8, 1000);
         $return = $this->makeHandover($booking, 'return', 8, 1300);
 
-        $charges = $this->service->calculate($booking, $pickup, $return);
+        $charges = $this->service->calculate($booking);
 
         $this->assertEquals(0, $charges['excess_mileage']);
         $this->assertEquals(0, $charges['total']);
@@ -145,9 +146,10 @@ class HandoverChargeCalculatorTest extends TestCase
         $pickup = $this->makeHandover($booking, 'pickup', 8, 1000);
         $return = $this->makeHandover($booking, 'return', 5, 1080);
 
-        $charges = $this->service->calculate($booking, $pickup, $return);
+        $charges = $this->service->calculate($booking);
 
         $this->assertEquals(0, $charges['fuel_refuel']);
         $this->assertEquals(0, $charges['total']);
     }
 }
+

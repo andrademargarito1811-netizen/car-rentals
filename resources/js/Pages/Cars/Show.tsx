@@ -68,10 +68,16 @@ const CAR_IMAGES = [
 
 const VEHICLE_TYPE_COLORS: Record<string, { bg: string; text: string; border: string }> = {
     'Economy': { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
+    'Compact': { bg: 'bg-teal-50', text: 'text-teal-700', border: 'border-teal-200' },
+    'Midsize SUV': { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
+    'Full Size SUV': { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200' },
+    'Regular SUV': { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
     'Regular SUV\'S': { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
     'SUV': { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
     'Vans': { bg: 'bg-violet-50', text: 'text-violet-700', border: 'border-violet-200' },
+    'Fullsize Van': { bg: 'bg-violet-50', text: 'text-violet-700', border: 'border-violet-200' },
     'Full Size Van': { bg: 'bg-violet-50', text: 'text-violet-700', border: 'border-violet-200' },
+    'FlatBeds': { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
     'Flatbeds': { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
     'Luxury': { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200' },
 };

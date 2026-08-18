@@ -30,6 +30,7 @@ interface RecordPaymentSheetProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     onEditPayment: (payment: BookingPayment) => void;
+    hideTrigger?: boolean;
 }
 
 type PaymentType = 'downpayment' | 'remaining' | 'full_payment' | 'refund';
@@ -40,7 +41,7 @@ const TYPE_OPTIONS: { value: PaymentType; label: string }[] = [
     { value: 'full_payment', label: 'Full Payment' },
 ];
 
-export default function RecordPaymentSheet({ booking, open, onOpenChange, onEditPayment }: RecordPaymentSheetProps) {
+export default function RecordPaymentSheet({ booking, open, onOpenChange, onEditPayment, hideTrigger = false }: RecordPaymentSheetProps) {
     const route = useRoute();
     const paymentForm = useForm({ amount: '', payment_method: 'Cash', transaction_id: '', type: 'remaining' });
 
@@ -94,12 +95,14 @@ export default function RecordPaymentSheet({ booking, open, onOpenChange, onEdit
         </Button>
     ) : (
         <Sheet open={open} onOpenChange={onOpenChange}>
-            <SheetTrigger asChild>
-                <Button variant={remainingBalance <= 0 ? 'outline' : 'default'} className="w-full">
-                    {remainingBalance <= 0 ? <Undo2 className="w-4 h-4 mr-1.5" /> : <DollarSign className="w-4 h-4 mr-1.5" />}
-                    {remainingBalance <= 0 ? 'Refund' : 'Record Payment'}
-                </Button>
-            </SheetTrigger>
+            {!hideTrigger && (
+                <SheetTrigger asChild>
+                    <Button variant={remainingBalance <= 0 ? 'outline' : 'default'} className="w-full">
+                        {remainingBalance <= 0 ? <Undo2 className="w-4 h-4 mr-1.5" /> : <DollarSign className="w-4 h-4 mr-1.5" />}
+                        {remainingBalance <= 0 ? 'Refund' : 'Record Payment'}
+                    </Button>
+                </SheetTrigger>
+            )}
             <SheetContent side="right" className="sm:max-w-md flex flex-col">
                 <SheetHeader>
                     <SheetTitle>{paymentForm.data.type === 'refund' ? 'Record Refund' : 'Record Payment'}</SheetTitle>

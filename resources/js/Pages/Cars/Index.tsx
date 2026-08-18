@@ -256,6 +256,7 @@ interface CarsIndexProps {
     canLogin: boolean;
     canRegister: boolean;
     cars: CarData[];
+    popularCars?: CarData[];
     heroSettings?: HeroSettings | null;
     totalCars: number;
     locations: LocationData[];
@@ -346,15 +347,27 @@ const formatCurrency = (amount: number) => {
     return amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
-export default function CarsIndex({ canLogin, canRegister, cars, heroSettings, totalCars, locations, faqs: faqsFromProps = [], whyChooseUsItems, whyChooseUsHeading, whyChooseUsSubheading, testimonialItems }: CarsIndexProps) {
+export default function CarsIndex({ canLogin, canRegister, cars, popularCars = [], heroSettings, totalCars, locations, faqs: faqsFromProps = [], whyChooseUsItems, whyChooseUsHeading, whyChooseUsSubheading, testimonialItems }: CarsIndexProps) {
     const route = useRoute();
     const { openChat } = useChat();
     const faqs = faqsFromProps.length > 0 ? faqsFromProps : [];
     const locationNames = useMemo(() => locations.map(l => l.location), [locations]);
 
     const fleetHighlights = useMemo(() => {
+        if (popularCars.length > 0) {
+            return popularCars.slice(0, 8).map(car => ({
+                name: car.name,
+                category: car.category,
+                price: String(car.daily_rate),
+                img: car.image_path ? `/storage/${car.image_path}` : CAR_IMAGES_FALLBACK[car.id % CAR_IMAGES_FALLBACK.length],
+                seats: car.seats,
+                transmission: car.transmission,
+                rating: car.avg_rating,
+                reviews: car.ratings_count,
+            }));
+        }
         if (cars && cars.length > 0) {
-            return cars.map(car => ({
+            return cars.slice(0, 8).map(car => ({
                 name: car.name,
                 category: car.category,
                 price: String(car.daily_rate),
@@ -366,7 +379,7 @@ export default function CarsIndex({ canLogin, canRegister, cars, heroSettings, t
             }));
         }
         return defaultFleetHighlights;
-    }, [cars]);
+    }, [popularCars, cars]);
 
     const quoteCars = useMemo(() => {
         if (cars && cars.length > 0) {

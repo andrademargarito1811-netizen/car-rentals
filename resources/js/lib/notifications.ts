@@ -3,6 +3,7 @@ export type NotificationCategory = 'booking' | 'payment' | 'review' | 'message' 
 const TYPE_TO_CATEGORY: Record<string, NotificationCategory> = {
     'booking.created': 'booking',
     'booking.status_changed': 'booking',
+    'booking.extended': 'booking',
     'payment.received': 'payment',
     'review.submitted': 'review',
     'contact.message': 'message',
@@ -43,6 +44,8 @@ export const CATEGORY_META: Record<NotificationCategory, { label: string; chip: 
 export const TYPE_FILTERS: Array<{ key: string; label: string }> = [
     { key: 'all', label: 'All' },
     { key: 'booking.created', label: 'Bookings' },
+    { key: 'booking.status_changed', label: 'Status Changes' },
+    { key: 'booking.extended', label: 'Extensions' },
     { key: 'payment.received', label: 'Payments' },
     { key: 'review.submitted', label: 'Reviews' },
     { key: 'contact.message', label: 'Messages' },

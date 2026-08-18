@@ -41,7 +41,7 @@ class CheckoutDriverService
         ];
 
         $guestId = $guest?->guest_id;
-        $isRenter = !empty($data['driver_is_renter']);
+        $isRenter = filter_var($data['driver_is_renter'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
         if (!$driver) {
             $values['guest_id'] = $isRenter ? $guestId : null;

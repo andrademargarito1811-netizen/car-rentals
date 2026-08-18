@@ -9,30 +9,41 @@ interface FilterSidebarState {
     priceMax: number;
     priceRangeMin: number;
     priceRangeMax: number;
+    yearMin: number;
+    yearMax: number;
+    yearRangeMin: number;
+    yearRangeMax: number;
+    minBaggage: number;
+    matchDates: boolean;
 }
 
 interface FilterSidebarProps {
     state: FilterSidebarState;
     filteredCount: number;
+    vehicleTypes?: string[];
     onVehicleTypeChange: (v: string) => void;
     onFuelFilterChange: (v: string) => void;
     onTransmissionFilterChange: (v: string) => void;
     onMinSeatsChange: (v: number) => void;
     onPriceMinChange: (v: number) => void;
     onPriceMaxChange: (v: number) => void;
+    onYearMinChange: (v: number) => void;
+    onYearMaxChange: (v: number) => void;
+    onMinBaggageChange: (v: number) => void;
+    onAvailabilityChange: (v: boolean) => void;
+    availabilityLabel: string;
     onReset: () => void;
     onApply?: () => void;
 }
 
-const VEHICLE_TYPES: { value: string; label: string }[] = [
-    { value: 'Economy', label: 'Economy' },
-    { value: "Regular SUV'S", label: 'SUV' },
-    { value: 'Vans', label: 'Van' },
-    { value: 'Full Size Van', label: 'Full Van' },
-    { value: 'Flatbeds', label: 'Flatbed' },
-];
+const VEHICLE_TYPES_FALLBACK = ['Economy', 'Compact', 'Midsize SUV', 'Full Size SUV', 'Regular SUV', 'Vans', 'Fullsize Van', 'FlatBeds'];
 
-const FUEL_OPTIONS = ['Petrol', 'Diesel', 'Electric', 'Hybrid'];
+const FUEL_OPTIONS: { value: string; label: string }[] = [
+    { value: 'gasoline', label: 'Petrol' },
+    { value: 'diesel', label: 'Diesel' },
+    { value: 'electric', label: 'Electric' },
+    { value: 'hybrid', label: 'Hybrid' },
+];
 const TRANSMISSION_OPTIONS = ['Automatic', 'Manual'];
 const SEAT_OPTIONS = [
     { value: 0, label: 'Any' },
@@ -40,6 +51,12 @@ const SEAT_OPTIONS = [
     { value: 4, label: '4+' },
     { value: 5, label: '5+' },
     { value: 7, label: '7+' },
+];
+const BAGGAGE_OPTIONS = [
+    { value: 0, label: 'Any' },
+    { value: 2, label: '2+' },
+    { value: 4, label: '4+' },
+    { value: 6, label: '6+' },
 ];
 
 const I = {
@@ -90,6 +107,17 @@ const I = {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
         </svg>
     ),
+    bags: (
+        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <rect x="6" y="7" width="12" height="13" rx="2" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 7V5a2 2 0 012-2h2a2 2 0 012 2v2M6 12h12" />
+        </svg>
+    ),
+    calendar: (
+        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+    ),
     petrol: (
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 21V8a2 2 0 012-2h7a2 2 0 012 2v13M5 21h11M5 21a1 1 0 01-1-1M16 21a1 1 0 001-1M8 6h5M8 9h5M8 12h5M8 15h5" />
@@ -130,54 +158,44 @@ const I = {
 
 function vehicleTypeGlyph(type: string): React.ReactNode {
     const common = 'w-5 h-5';
-    switch (type) {
-        case 'Economy':
-            return (
-                <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M5 17h14l-1.4-5.6A2 2 0 0 0 15.7 10H8.3a2 2 0 0 0-1.9 1.4L5 17Z" />
-                    <circle cx="8" cy="17" r="1.5" />
-                    <circle cx="16" cy="17" r="1.5" />
-                </svg>
-            );
-        case "Regular SUV'S":
-            return (
-                <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M3 17h18l-1-7a2 2 0 0 0-2-1.6H6a2 2 0 0 0-2 1.6l-1 7Z" />
-                    <path d="M3 17v2M21 17v2" />
-                    <circle cx="7.5" cy="17" r="1.5" />
-                    <circle cx="16.5" cy="17" r="1.5" />
-                </svg>
-            );
-        case 'Vans':
-            return (
-                <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="7" width="18" height="10" rx="1.5" />
-                    <path d="M3 12h18" />
-                    <circle cx="7" cy="18" r="1.5" />
-                    <circle cx="17" cy="18" r="1.5" />
-                </svg>
-            );
-        case 'Full Size Van':
-            return (
-                <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M2 17V9a2 2 0 0 1 2-2h12l4 4v6H2Z" />
-                    <path d="M16 7v4h4" />
-                    <circle cx="7" cy="17" r="1.5" />
-                    <circle cx="17" cy="17" r="1.5" />
-                </svg>
-            );
-        case 'Flatbeds':
-            return (
-                <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M2 16h13V8H4a2 2 0 0 0-2 2v6Z" />
-                    <path d="M15 11h4l3 3v2h-7" />
-                    <circle cx="7" cy="18" r="1.5" />
-                    <circle cx="18" cy="18" r="1.5" />
-                </svg>
-            );
-        default:
-            return I.car;
+    const t = type.toLowerCase();
+    if (t.includes('suv')) {
+        return (
+            <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 17h18l-1-7a2 2 0 0 0-2-1.6H6a2 2 0 0 0-2 1.6l-1 7Z" />
+                <path d="M3 17v2M21 17v2" />
+                <circle cx="7.5" cy="17" r="1.5" />
+                <circle cx="16.5" cy="17" r="1.5" />
+            </svg>
+        );
     }
+    if (t.includes('van')) {
+        return (
+            <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M2 17V9a2 2 0 0 1 2-2h12l4 4v6H2Z" />
+                <path d="M16 7v4h4" />
+                <circle cx="7" cy="17" r="1.5" />
+                <circle cx="17" cy="17" r="1.5" />
+            </svg>
+        );
+    }
+    if (t.includes('flatbed')) {
+        return (
+            <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M2 16h13V8H4a2 2 0 0 0-2 2v6Z" />
+                <path d="M15 11h4l3 3v2h-7" />
+                <circle cx="7" cy="18" r="1.5" />
+                <circle cx="18" cy="18" r="1.5" />
+            </svg>
+        );
+    }
+    return (
+        <svg className={common} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M5 17h14l-1.4-5.6A2 2 0 0 0 15.7 10H8.3a2 2 0 0 0-1.9 1.4L5 17Z" />
+            <circle cx="8" cy="17" r="1.5" />
+            <circle cx="16" cy="17" r="1.5" />
+        </svg>
+    );
 }
 
 const PULSE_STYLES = `
@@ -188,12 +206,18 @@ const PULSE_STYLES = `
 export default function FilterSidebar({
     state,
     filteredCount,
+    vehicleTypes = [],
     onVehicleTypeChange,
     onFuelFilterChange,
     onTransmissionFilterChange,
     onMinSeatsChange,
     onPriceMinChange,
     onPriceMaxChange,
+    onYearMinChange,
+    onYearMaxChange,
+    onMinBaggageChange,
+    onAvailabilityChange,
+    availabilityLabel,
     onReset,
     onApply,
 }: FilterSidebarProps) {
@@ -204,6 +228,9 @@ export default function FilterSidebar({
         if (state.transmissionFilter !== 'any') n++;
         if (state.minSeats > 0) n++;
         if (state.priceMin > state.priceRangeMin || state.priceMax < state.priceRangeMax) n++;
+        if (state.yearMin > state.yearRangeMin || state.yearMax < state.yearRangeMax) n++;
+        if (state.minBaggage > 0) n++;
+        if (state.matchDates) n++;
         return n;
     }, [state]);
 
@@ -277,16 +304,57 @@ export default function FilterSidebar({
                                     onClick={() => onVehicleTypeChange('any')}
                                     icon={I.car}
                                 />
-                                {VEHICLE_TYPES.map((t) => (
+                                {(vehicleTypes.length > 0 ? vehicleTypes : VEHICLE_TYPES_FALLBACK).map((t) => (
                                     <VehicleCard
-                                        key={t.value}
-                                        label={t.label}
-                                        active={state.vehicleType === t.value}
-                                        onClick={() => onVehicleTypeChange(t.value)}
-                                        icon={vehicleTypeGlyph(t.value)}
+                                        key={t}
+                                        label={t}
+                                        active={state.vehicleType === t}
+                                        onClick={() => onVehicleTypeChange(t)}
+                                        icon={vehicleTypeGlyph(t)}
                                     />
                                 ))}
                             </div>
+                        </Section>
+
+                        <Section title="Availability" icon={I.calendar}>
+                            <button
+                                type="button"
+                                onClick={() => onAvailabilityChange(!state.matchDates)}
+                                className={`w-full flex items-center justify-between gap-3 h-12 px-3 rounded-xl border transition-all duration-200 active:scale-[0.98] ${
+                                    state.matchDates
+                                        ? 'bg-gradient-to-br from-brand-50 to-brand-100/60 border-brand-200 ring-2 ring-brand-500/20'
+                                        : 'bg-white border-surface-200 hover:border-surface-300'
+                                }`}
+                            >
+                                <span className="flex items-center gap-2.5 min-w-0">
+                                    <span
+                                        className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+                                            state.matchDates ? 'bg-brand-700 text-white' : 'bg-surface-100 text-surface-500'
+                                        }`}
+                                    >
+                                        {I.calendar}
+                                    </span>
+                                    <span className="text-left min-w-0">
+                                        <span className="block text-[11px] font-bold text-surface-900 leading-tight">
+                                            Only cars free on my dates
+                                        </span>
+                                        <span className="block text-[9px] font-semibold text-surface-500 truncate">
+                                            {availabilityLabel}
+                                        </span>
+                                    </span>
+                                </span>
+                                <span
+                                    className={`relative shrink-0 w-10 h-6 rounded-full transition-colors duration-300 ${
+                                        state.matchDates ? 'bg-brand-700' : 'bg-surface-300'
+                                    }`}
+                                >
+                                    <span
+                                        className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-transform duration-300 ${
+                                            state.matchDates ? 'translate-x-[1.125rem]' : 'translate-x-0.5'
+                                        }`}
+                                    />
+                                </span>
+                            </button>
                         </Section>
 
                         <Section title="Fuel type" icon={I.fuel}>
@@ -300,12 +368,12 @@ export default function FilterSidebar({
                                 />
                                 {FUEL_OPTIONS.map((f) => (
                                     <FuelCard
-                                        key={f}
-                                        label={f}
-                                        icon={fuelIconFor(f)}
-                                        tone={fuelToneFor(f)}
-                                        active={state.fuelFilter === f}
-                                        onClick={() => onFuelFilterChange(f)}
+                                        key={f.value}
+                                        label={f.label}
+                                        icon={fuelIconFor(f.label)}
+                                        tone={fuelToneFor(f.label)}
+                                        active={state.fuelFilter === f.value}
+                                        onClick={() => onFuelFilterChange(f.value)}
                                     />
                                 ))}
                             </div>
@@ -365,6 +433,40 @@ export default function FilterSidebar({
                             </div>
                         </Section>
 
+                        <Section title="Baggage" icon={I.bags}>
+                            <div className="grid grid-cols-4 gap-1.5">
+                                {BAGGAGE_OPTIONS.map((b) => {
+                                    const active = state.minBaggage === b.value;
+                                    return (
+                                        <button
+                                            key={b.value}
+                                            type="button"
+                                            onClick={() => onMinBaggageChange(b.value)}
+                                            className={`relative h-14 rounded-xl text-xs font-black transition-all duration-200 active:scale-95 flex flex-col items-center justify-center gap-0.5 ${
+                                                active
+                                                    ? 'bg-gradient-to-br from-brand-700 to-brand-800 text-white shadow-md shadow-brand-700/30 ring-2 ring-offset-2 ring-offset-white ring-brand-500/40'
+                                                    : 'bg-white text-surface-700 hover:bg-surface-50 border border-surface-200 hover:border-surface-300'
+                                            }`}
+                                        >
+                                            {active && (
+                                                <span className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-accent-400 text-brand-900 flex items-center justify-center">
+                                                    {I.check}
+                                                </span>
+                                            )}
+                                            <span className="text-sm leading-none tabular-nums">{b.label}</span>
+                                            <span
+                                                className={`text-[8px] font-bold uppercase tracking-wider leading-none ${
+                                                    active ? 'text-white/70' : 'text-surface-400'
+                                                }`}
+                                            >
+                                                bags
+                                            </span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </Section>
+
                         <Section title="Price per day" icon={I.dollar}>
                             <div className="space-y-3">
                                 <DualRangeSlider
@@ -391,6 +493,39 @@ export default function FilterSidebar({
                                         min={state.priceMin}
                                         max={state.priceRangeMax}
                                         onChange={(v) => onPriceMaxChange(v)}
+                                    />
+                                </div>
+                            </div>
+                        </Section>
+
+                        <Section title="Year" icon={I.calendar}>
+                            <div className="space-y-3">
+                                <DualRangeSlider
+                                    min={state.yearRangeMin}
+                                    max={state.yearRangeMax}
+                                    valueMin={state.yearMin}
+                                    valueMax={state.yearMax}
+                                    onChange={(lo, hi) => {
+                                        onYearMinChange(lo);
+                                        onYearMaxChange(hi);
+                                    }}
+                                />
+                                <div className="grid grid-cols-2 gap-2">
+                                    <PriceInput
+                                        label="From"
+                                        value={state.yearMin}
+                                        min={state.yearRangeMin}
+                                        max={state.yearMax}
+                                        onChange={onYearMinChange}
+                                        prefix=""
+                                    />
+                                    <PriceInput
+                                        label="To"
+                                        value={state.yearMax}
+                                        min={state.yearMin}
+                                        max={state.yearRangeMax}
+                                        onChange={onYearMaxChange}
+                                        prefix=""
                                     />
                                 </div>
                             </div>
@@ -614,12 +749,14 @@ function PriceInput({
     min,
     max,
     onChange,
+    prefix = '$',
 }: {
     label: string;
     value: number;
     min: number;
     max: number;
     onChange: (v: number) => void;
+    prefix?: string;
 }) {
     return (
         <div className="relative">
@@ -627,9 +764,11 @@ function PriceInput({
                 {label}
             </div>
             <div className="relative">
-                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] font-black text-surface-400">
-                    $
-                </span>
+                {prefix && (
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] font-black text-surface-400">
+                        {prefix}
+                    </span>
+                )}
                 <input
                     type="number"
                     min={min}
@@ -640,7 +779,7 @@ function PriceInput({
                         if (Number.isNaN(v)) return;
                         onChange(Math.max(min, Math.min(max, v)));
                     }}
-                    className="w-full h-9 pl-6 pr-2 bg-white border border-surface-200 rounded-lg text-xs font-bold text-surface-900 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 transition-all"
+                    className={`w-full h-9 ${prefix ? 'pl-6' : 'pl-2.5'} pr-2 bg-white border border-surface-200 rounded-lg text-xs font-bold text-surface-900 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 transition-all`}
                 />
             </div>
         </div>

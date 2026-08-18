@@ -68,6 +68,14 @@ interface InvoiceBooking {
     return_location: { location: string } | null;
     extra_charges: { id: number; name: string; amount: string; tax_amount: string; operator: string }[];
     handover_charges: { fuel_refuel: number; excess_mileage: number; excess_km: number; total: number } | null;
+    swap_segments?: Array<{
+        car: { brand: string; model: string; year: number; license_plate: string; daily_rate: number } | null;
+        start_date: string;
+        end_date: string;
+        days: number;
+        daily_rate: number;
+        subtotal: number;
+    }>;
     pickup_handover: {
         fuel_level: number | null;
         odometer: number | null;
@@ -255,21 +263,40 @@ export default function Invoice({ ref, booking, settings, documentType = 'INVOIC
 
     const discount = Number(booking.coupon_usage?.discount_amount ?? 0);
 
-    const lines: InvoiceLine[] = [
-        {
-            description: `${booking.car?.brand ?? ''} ${booking.car?.model ?? ''} — ${days} day${days !== 1 ? 's' : ''}`,
-            details: `${days} day${days !== 1 ? 's' : ''} × ${formatPrice(Number(booking.car?.daily_rate ?? 0))}/day`,
-            amount: rentalSubtotal,
-        },
-        ...addTaxes.map(t => ({ description: taxLabel(t), amount: Number(t.amount) })),
-        ...subTaxes.map(t => ({ description: taxLabel(t), amount: Number(t.amount), negative: true })),
-        ...extraCharges.map(c => ({
-            description: Number(c.tax_amount) > 0 ? `${c.name} (incl. tax)` : c.name,
-            amount: Number(c.amount) + Number(c.tax_amount),
-            negative: c.operator === '-',
-        })),
-        ...(handoverCharges > 0 && handoverChargesLine ? [handoverChargesLine] : []),
-    ];
+    const swapSegments = booking.swap_segments ?? [];
+    const hasSwaps = swapSegments.length > 0;
+
+    const lines: InvoiceLine[] = hasSwaps
+        ? [
+            ...swapSegments.map(seg => ({
+                description: `${seg.car?.brand ?? ''} ${seg.car?.model ?? ''} — ${seg.days} day${seg.days !== 1 ? 's' : ''}`,
+                details: `${seg.days} day${seg.days !== 1 ? 's' : ''} × ${formatPrice(Number(seg.daily_rate))}/day`,
+                amount: Number(seg.subtotal),
+            })),
+            ...addTaxes.map(t => ({ description: taxLabel(t), amount: Number(t.amount) })),
+            ...subTaxes.map(t => ({ description: taxLabel(t), amount: Number(t.amount), negative: true })),
+            ...extraCharges.map(c => ({
+                description: Number(c.tax_amount) > 0 ? `${c.name} (incl. tax)` : c.name,
+                amount: Number(c.amount) + Number(c.tax_amount),
+                negative: c.operator === '-',
+            })),
+            ...(handoverCharges > 0 && handoverChargesLine ? [handoverChargesLine] : []),
+        ]
+        : [
+            {
+                description: `${booking.car?.brand ?? ''} ${booking.car?.model ?? ''} — ${days} day${days !== 1 ? 's' : ''}`,
+                details: `${days} day${days !== 1 ? 's' : ''} × ${formatPrice(Number(booking.car?.daily_rate ?? 0))}/day`,
+                amount: rentalSubtotal,
+            },
+            ...addTaxes.map(t => ({ description: taxLabel(t), amount: Number(t.amount) })),
+            ...subTaxes.map(t => ({ description: taxLabel(t), amount: Number(t.amount), negative: true })),
+            ...extraCharges.map(c => ({
+                description: Number(c.tax_amount) > 0 ? `${c.name} (incl. tax)` : c.name,
+                amount: Number(c.amount) + Number(c.tax_amount),
+                negative: c.operator === '-',
+            })),
+            ...(handoverCharges > 0 && handoverChargesLine ? [handoverChargesLine] : []),
+        ];
 
     if (discount > 0) {
         lines.push({ description: `Coupon (${booking.coupon_usage?.code})`, details: 'Discount', amount: discount, negative: true });
@@ -496,7 +523,10 @@ export default function Invoice({ ref, booking, settings, documentType = 'INVOIC
                                     )}
                                 </tbody>
                                 <tfoot>
-                                    <TotalRow label="Subtotal" value={formatPrice(rentalSubtotal)} />
+                                    <TotalRow
+                                        label="Subtotal"
+                                        value={formatPrice(hasSwaps ? swapSegments.reduce((s, seg) => s + Number(seg.subtotal), 0) : rentalSubtotal)}
+                                    />
                                     {taxTotal !== 0 && <TotalRow label="Fees & Taxes" value={formatPrice(taxTotal)} />}
                                     {extraChargesTotal !== 0 && (
                                         <TotalRow

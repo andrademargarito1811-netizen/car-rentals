@@ -10,6 +10,8 @@ use App\Mail\GuestBookingConfirmation;
 use App\Models\AuditLog;
 use App\Models\Booking;
 use App\Models\Car;
+use App\Models\Coupon;
+use App\Models\CouponUsage;
 use App\Models\ExtraCharge;
 use App\Models\InvoiceSetting;
 use App\Models\LegalDocument;
@@ -32,7 +34,11 @@ class BookingController extends Controller
 {
     public function show(Booking $booking)
     {
-        $booking->load(['user', 'guest', 'car', 'payment', 'payments', 'pickupHandover', 'returnHandover', 'bookingTaxes.tax', 'extraCharges', 'couponUsage']);
+        $booking->load(['user', 'guest', 'car', 'payment', 'payments', 'pickupLocation', 'returnLocation', 'pickupHandover', 'returnHandover', 'bookingTaxes.tax', 'extraCharges', 'couponUsage', 'swaps.fromCar', 'swaps.toCar']);
+        $booking->setAttribute('extension_source', $booking->extensionSource());
+        $booking->setAttribute('extension_children', $booking->extensionChildren());
+        $booking->setAttribute('timeline', $booking->activityTimeline());
+        $booking->setAttribute('swap_segments', $booking->swapSegments());
 
         return Inertia::render('Admin/Bookings/Show', [
             'booking' => $booking,
@@ -45,7 +51,10 @@ class BookingController extends Controller
         $booking->load([
             'user', 'guest', 'car.vehicleClass', 'driver', 'payments', 'bookingTaxes.tax', 'couponUsage',
             'pickupLocation', 'returnLocation', 'pickupHandover', 'returnHandover', 'extraCharges',
+            'swaps.fromCar', 'swaps.toCar',
         ]);
+
+        $booking->setAttribute('swap_segments', $booking->swapSegments());
 
         $invoiceTerms = LegalDocument::where('slug', 'invoice-terms-online')
             ->where('is_active', true)
@@ -100,8 +109,10 @@ class BookingController extends Controller
 
         // Pre-fill existing damage from the car's most recent handover (pickup or
         // return) so staff only confirm/edit marks instead of re-entering them.
+        // Matched on the car itself, so a swapped-in vehicle shows its own
+        // damage history rather than the outgoing car's.
         $previousDamages = VehicleHandover::query()
-            ->whereHas('booking', fn ($q) => $q->where('car_id', $booking->car_id))
+            ->where('car_id', $booking->car_id)
             ->orderByDesc('id')
             ->get()
             ->pluck('damages')
@@ -234,44 +245,50 @@ class BookingController extends Controller
 
         $payment = null;
 
-        DB::transaction(function () use ($request, $booking, $validated, $isRefund, $shouldConfirm, &$payment) {
-            $payment = Payment::create([
-                'booking_id' => $booking->id,
-                'type' => $validated['type'],
-                'amount' => $isRefund ? -1 * (float) $validated['amount'] : $validated['amount'],
-                'payment_method' => $validated['payment_method'],
-                'transaction_id' => $validated['transaction_id'] ?? 'ADM-'.strtoupper(Str::random(10)),
-                'payment_status' => 'completed',
-            ]);
-
-            AuditLog::create([
-                'user_id' => auth()->id(),
-                'action' => $isRefund ? 'refund_recorded' : 'payment_recorded',
-                'model_type' => Payment::class,
-                'model_id' => $payment->id,
-                'description' => ($isRefund ? 'Refund of' : 'Payment of')." \${$validated['amount']} ({$validated['type']}) recorded for booking {$booking->reference_code}",
-                'old_values' => [],
-                'new_values' => $validated,
-                'ip_address' => $request->ip(),
-                'user_agent' => $request->userAgent(),
-            ]);
-
-            if ($shouldConfirm) {
-                $booking->update(['status' => 'confirmed']);
+        try {
+            DB::transaction(function () use ($request, $booking, $validated, $isRefund, $shouldConfirm, &$payment) {
+                $payment = Payment::create([
+                    'booking_id' => $booking->id,
+                    'type' => $validated['type'],
+                    'amount' => $isRefund ? -1 * (float) $validated['amount'] : $validated['amount'],
+                    'payment_method' => $validated['payment_method'],
+                    'transaction_id' => $validated['transaction_id'] ?? 'ADM-'.strtoupper(Str::random(10)),
+                    'payment_status' => 'completed',
+                ]);
 
                 AuditLog::create([
                     'user_id' => auth()->id(),
-                    'action' => 'status_updated',
-                    'model_type' => Booking::class,
-                    'model_id' => $booking->id,
-                    'description' => "Booking status updated from pending to confirmed ({$validated['type']} recorded)",
-                    'old_values' => ['status' => 'pending'],
-                    'new_values' => ['status' => 'confirmed'],
+                    'action' => $isRefund ? 'refund_recorded' : 'payment_recorded',
+                    'model_type' => Payment::class,
+                    'model_id' => $payment->id,
+                    'description' => ($isRefund ? 'Refund of' : 'Payment of')." \${$validated['amount']} ({$validated['type']}) recorded for booking {$booking->reference_code}",
+                    'old_values' => [],
+                    'new_values' => $validated,
                     'ip_address' => $request->ip(),
                     'user_agent' => $request->userAgent(),
                 ]);
-            }
-        });
+
+                if ($shouldConfirm) {
+                    $this->consumeCoupon($booking);
+
+                    $booking->update(['status' => 'confirmed']);
+
+                    AuditLog::create([
+                        'user_id' => auth()->id(),
+                        'action' => 'status_updated',
+                        'model_type' => Booking::class,
+                        'model_id' => $booking->id,
+                        'description' => "Booking status updated from pending to confirmed ({$validated['type']} recorded)",
+                        'old_values' => ['status' => 'pending'],
+                        'new_values' => ['status' => 'confirmed'],
+                        'ip_address' => $request->ip(),
+                        'user_agent' => $request->userAgent(),
+                    ]);
+                }
+            });
+        } catch (BookingStatusException $e) {
+            return redirect()->back()->withErrors(['status' => $e->getMessage()]);
+        }
 
         if ($shouldConfirm) {
             try {
@@ -399,5 +416,28 @@ class BookingController extends Controller
                 ->withErrors(['error' => $e->getMessage()])
                 ->withInput();
         }
+    }
+
+    /**
+     * Consume a coupon slot when a pending booking is confirmed via a recorded
+     * payment (the same capacity enforcement used by status transitions).
+     */
+    private function consumeCoupon(Booking $booking): void
+    {
+        $usage = CouponUsage::where('booking_id', $booking->id)->first();
+        if (! $usage || ! $usage->coupon) {
+            return;
+        }
+
+        $coupon = Coupon::whereKey($usage->coupon_id)->lockForUpdate()->first();
+        if (! $coupon) {
+            return;
+        }
+
+        if ($coupon->max_uses !== null && (int) $coupon->user_count >= (int) $coupon->max_uses) {
+            throw new BookingStatusException("Cannot confirm — coupon {$coupon->code} has reached its usage limit.");
+        }
+
+        $coupon->increment('user_count');
     }
 }

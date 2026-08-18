@@ -78,8 +78,6 @@ class UserController extends Controller
 
         unset($validated['profile_photo'], $validated['send_welcome_email'], $validated['password_confirmation']);
 
-        unset($validated['password']);
-
         $user = User::create($validated);
 
         AuditLog::create([
@@ -88,7 +86,7 @@ class UserController extends Controller
             'model_type' => User::class,
             'model_id' => $user->id,
             'description' => "Created user #{$user->id} ({$user->email})",
-            'new_values' => $validated,
+            'new_values' => collect($validated)->except('password')->toArray(),
             'ip_address' => $request->ip(),
             'user_agent' => $request->userAgent(),
         ]);
@@ -163,7 +161,7 @@ class UserController extends Controller
 
         if ($request->filled('password')) {
             $request->validate(['password' => 'string|min:8']);
-            $validated['password'] = bcrypt($request->password);
+            $validated['password'] = $request->password;
         }
 
         $oldValues = [
@@ -175,11 +173,16 @@ class UserController extends Controller
             'status' => $user->status,
         ];
 
-        // Last admin guard
-        if (isset($validated['role']) && $validated['role'] !== 'admin' && $user->role === 'admin') {
-            $adminCount = User::where('role', 'admin')->count();
+        // Last admin guard: prevent removing or suspending the last active admin.
+        $isAdminBeingDemoted = isset($validated['role']) && $validated['role'] !== 'admin' && $user->role === 'admin';
+        $isAdminBeingSuspended = $user->role === 'admin'
+            && ($validated['status'] ?? $user->status) === 'suspended'
+            && $user->status !== 'suspended';
+
+        if ($isAdminBeingDemoted || $isAdminBeingSuspended) {
+            $adminCount = User::where('role', 'admin')->where('status', 'active')->count();
             if ($adminCount <= 1) {
-                return redirect()->back()->withErrors(['role' => 'Cannot remove the last admin account.']);
+                return redirect()->back()->withErrors(['role' => 'Cannot remove or suspend the last admin account.']);
             }
         }
 
@@ -192,7 +195,7 @@ class UserController extends Controller
             'model_id' => $user->id,
             'description' => "Updated user #{$user->id} ({$user->email})",
             'old_values' => $oldValues,
-            'new_values' => $validated,
+            'new_values' => collect($validated)->except('password')->toArray(),
             'ip_address' => $request->ip(),
             'user_agent' => $request->userAgent(),
         ]);

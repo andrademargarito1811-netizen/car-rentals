@@ -37,6 +37,11 @@ interface AdminCarsIndexProps {
         data: CarData[];
         links: Array<{ url: string | null; label: string; active: boolean }>;
     };
+    stats?: {
+        total: number;
+        available: number;
+        rented: number;
+    };
     filters?: {
         search: string | null;
         sort_field: string;
@@ -137,7 +142,7 @@ function fuelIcon(type: string) {
     );
 }
 
-export default function AdminCarsIndex({ cars, filters }: AdminCarsIndexProps) {
+export default function AdminCarsIndex({ cars, stats, filters }: AdminCarsIndexProps) {
     const route = useRoute();
     const [search, setSearch] = useState(filters?.search || '');
     const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -178,10 +183,9 @@ export default function AdminCarsIndex({ cars, filters }: AdminCarsIndexProps) {
     }
 
     const statusCounts = {
-        total: cars.data.length,
-        available: cars.data.filter((c) => c.status === 'available').length,
-        rented: cars.data.filter((c) => c.status === 'rented').length,
-        maintenance: cars.data.filter((c) => c.status === 'maintenance').length,
+        total: stats?.total ?? cars.data.length,
+        available: stats?.available ?? 0,
+        rented: stats?.rented ?? 0,
     };
 
     return (
@@ -221,12 +225,11 @@ export default function AdminCarsIndex({ cars, filters }: AdminCarsIndexProps) {
                     <div className="px-6 lg:px-10 space-y-8">
 
                         {/* Stats bar */}
-                        <div className="grid gap-4 sm:grid-cols-4">
+                        <div className="grid gap-4 sm:grid-cols-3">
                             {[
                                 { label: 'Total Cars', value: statusCounts.total, gradient: 'from-brand-500/20 to-brand-700/10', iconGradient: 'from-brand-500 to-brand-600', icon: 'M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4' },
                                 { label: 'Available', value: statusCounts.available, gradient: 'from-emerald-500/20 to-emerald-600/10', iconGradient: 'from-emerald-500 to-emerald-600', icon: 'M5 13l4 4L19 7' },
                                 { label: 'Rented', value: statusCounts.rented, gradient: 'from-accent-400/20 to-accent-500/10', iconGradient: 'from-accent-400 to-accent-500', icon: 'M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z' },
-                                { label: 'Maintenance', value: statusCounts.maintenance, gradient: 'from-red-500/20 to-red-600/10', iconGradient: 'from-red-500 to-red-600', icon: 'M12 9v3.75m-1.5-5.25h1.5m-1.5 3h1.5m-1.5 3h1.5' },
                             ].map((stat, i) => (
                                 <div key={stat.label} className={`animate-fade-in-up stagger-${i + 1}`}>
                                     <div className="relative overflow-hidden rounded-2xl bg-white dark:bg-brand-800/80 border border-surface-100 dark:border-surface-700/60 shadow-sm hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5">

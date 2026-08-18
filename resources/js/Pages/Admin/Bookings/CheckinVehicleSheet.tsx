@@ -62,6 +62,7 @@ interface CheckinVehicleBooking {
     reference_code: string | null;
     start_date: string;
     end_date: string;
+    pickup_time: string | null;
     return_time: string | null;
     total_amount: number;
     car: {
@@ -72,7 +73,8 @@ interface CheckinVehicleBooking {
         vehicle_type: string | null;
     };
     payments: { amount: number; payment_status: string }[];
-    pickup_handover: { fuel_level: number | null; odometer: number | null; damages: VehicleDamage[] | null } | null;
+    pickup_handover: { fuel_level: number | null; odometer: number | null; damages: VehicleDamage[] | null; captured_at: string | null } | null;
+    coupon_usage: { code: string; discount_amount: number } | null;
     booking_taxes: BookingTax[];
 }
 
@@ -92,13 +94,27 @@ interface ExtraChargeCatalogItem {
 interface CheckinVehicleSheetProps {
     booking: CheckinVehicleBooking;
     extraCharges?: ExtraChargeCatalogItem[];
+    triggerClassName?: string;
 }
 
 function round2(value: number): number {
     return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
-export default function CheckinVehicleSheet({ booking, extraCharges = [] }: CheckinVehicleSheetProps) {
+function toDateTime(date: string, time: string | null): Date {
+    return new Date(`${date}T${time ?? '00:00:00'}`);
+}
+
+function billingDays(start: Date, end: Date): number {
+    return Math.max(1, Math.ceil(Math.max(0, end.getTime() - start.getTime()) / 86400000));
+}
+
+function toLocalInputValue(d: Date): string {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+export default function CheckinVehicleSheet({ booking, extraCharges = [], triggerClassName }: CheckinVehicleSheetProps) {
     const route = useRoute();
     const [open, setOpen] = useState(false);
     const [showExistingDamages, setShowExistingDamages] = useState(false);
@@ -110,6 +126,7 @@ export default function CheckinVehicleSheet({ booking, extraCharges = [] }: Chec
     const checkinForm = useForm({
         _method: 'PATCH',
         status: 'completed',
+        returned_at: toLocalInputValue(new Date()),
         return_fuel: '',
         return_odometer: '',
         return_notes: '',
@@ -180,6 +197,43 @@ export default function CheckinVehicleSheet({ booking, extraCharges = [] }: Chec
         }, 0);
     }
 
+    function recomputeTaxAmount(t: BookingTax, subtotal: number, actualDays: number, reservedDays: number): number {
+        const tax = t.tax;
+        if (!tax) {
+            return reservedDays > 0 ? round2(Number(t.amount) * actualDays / reservedDays) : 0;
+        }
+        const rate = Number(tax.rate) || 0;
+        if (tax.value_in === 'Percentage') {
+            return round2(tax.calculation === 'Per Day' ? (dailyRate * rate / 100) * actualDays : subtotal * rate / 100);
+        }
+        return round2(tax.calculation === 'Per Day' ? rate * actualDays : rate);
+    }
+
+    function computeProration(): { proratedBase: number | null; actualDays: number; reservedDays: number } {
+        const pickupAt = booking.pickup_handover?.captured_at;
+        const returnedAt = checkinForm.data.returned_at;
+        if (!pickupAt || !returnedAt) return { proratedBase: null, actualDays: 0, reservedDays: 0 };
+
+        const actualDays = billingDays(new Date(pickupAt), new Date(returnedAt));
+        const reservedDays = billingDays(
+            toDateTime(booking.start_date, booking.pickup_time),
+            toDateTime(booking.end_date, booking.return_time),
+        );
+
+        if (actualDays >= reservedDays) return { proratedBase: null, actualDays, reservedDays };
+
+        const subtotal = round2(dailyRate * actualDays);
+        let taxTotal = 0;
+        for (const t of (booking.booking_taxes ?? [])) {
+            const amount = recomputeTaxAmount(t, subtotal, actualDays, reservedDays);
+            taxTotal += t.add_or_minus ? amount : -amount;
+        }
+        const coupon = Number(booking.coupon_usage?.discount_amount ?? 0);
+        const proratedBase = Math.max(0, round2(subtotal + taxTotal - coupon));
+
+        return { proratedBase, actualDays, reservedDays };
+    }
+
     function submitCheckin(e: React.FormEvent) {
         e.preventDefault();
         checkinForm.post(route('admin.bookings.status', booking.id), {
@@ -210,20 +264,20 @@ export default function CheckinVehicleSheet({ booking, extraCharges = [] }: Chec
 
     const returnCharges = computeReturnCharges(checkinForm.data.return_fuel, checkinForm.data.return_odometer);
     const extraChargeTotal = computeExtraChargeTotal();
-    const requiredPayment = remainingBalance + returnCharges.total + extraChargeTotal;
+    const proration = computeProration();
+    const proratedTotal = round2((proration.proratedBase ?? totalAmount) + returnCharges.total + extraChargeTotal);
+    const requiredPayment = Math.max(0, round2(proratedTotal - totalPaid));
 
     useEffect(() => {
         if (!open) return;
         checkinAmountEdited.current = false;
-        const required = remainingBalance + computeReturnCharges(checkinForm.data.return_fuel, checkinForm.data.return_odometer).total + computeExtraChargeTotal();
-        checkinForm.setData('amount', required > 0 ? required.toFixed(2) : '');
+        checkinForm.setData('returned_at', toLocalInputValue(new Date()));
     }, [open]);
 
     useEffect(() => {
         if (!open || checkinAmountEdited.current) return;
-        const required = remainingBalance + returnCharges.total + extraChargeTotal;
-        checkinForm.setData('amount', required > 0 ? required.toFixed(2) : '');
-    }, [open, returnCharges.total, extraChargeTotal, remainingBalance]);
+        checkinForm.setData('amount', requiredPayment > 0 ? requiredPayment.toFixed(2) : '');
+    }, [open, requiredPayment]);
 
     return (
                         <Sheet open={open} onOpenChange={open => {
@@ -232,7 +286,7 @@ export default function CheckinVehicleSheet({ booking, extraCharges = [] }: Chec
                             if (!open) checkinForm.reset();
                         }}>
             <SheetTrigger asChild>
-                <Button variant="default" className="w-full" disabled={!pickup} title={pickup ? undefined : 'Pickup handover must be recorded before check-in.'}>
+                <Button variant="default" className={triggerClassName ?? 'w-full'} disabled={!pickup} title={pickup ? undefined : 'Pickup handover must be recorded before check-in.'}>
                     <BadgeCheck className="w-4 h-4 mr-1.5" />
                     Check-in Vehicle
                 </Button>
@@ -261,6 +315,19 @@ export default function CheckinVehicleSheet({ booking, extraCharges = [] }: Chec
                                 </div>
                             </div>
                         )}
+                        <div>
+                            <Label className="text-sm font-medium mb-1.5 block">
+                                Actual Return Date &amp; Time
+                            </Label>
+                            <Input
+                                type="datetime-local"
+                                value={checkinForm.data.returned_at}
+                                onChange={e => checkinForm.setData('returned_at', e.target.value)}
+                            />
+                            {checkinForm.errors.returned_at && (
+                                <p className="mt-1 text-xs text-destructive">{checkinForm.errors.returned_at}</p>
+                            )}
+                        </div>
                         <div>
                             <Label className="text-sm font-medium mb-1.5 block">
                                 Fuel Level <span className="text-destructive">*</span>
@@ -476,8 +543,15 @@ export default function CheckinVehicleSheet({ booking, extraCharges = [] }: Chec
                         )}
                         <div className="rounded-lg bg-muted/50 border p-3 space-y-2">
                             <p className="text-sm font-medium text-foreground">Final Payment</p>
+                            {proration.proratedBase !== null && (
+                                <div className="rounded-md bg-blue-500/10 border border-blue-500/20 px-3 py-2 text-[11px] text-blue-600">
+                                    Early return: billed for {proration.actualDays} day{proration.actualDays !== 1 ? 's' : ''} instead of {proration.reservedDays}.
+                                    {' '}Adjustment {formatPrice(proration.proratedBase - totalAmount)}
+                                </div>
+                            )}
                             <p className="text-[11px] text-muted-foreground">
                                 Remaining {formatPrice(remainingBalance)}
+                                {proration.proratedBase !== null && <> · proration {formatPrice(proration.proratedBase - totalAmount)}</>}
                                 {returnCharges.total > 0 && <> + charges {formatPrice(returnCharges.total)}</>}
                                 {extraChargeTotal !== 0 && <> {extraChargeTotal > 0 ? '+' : '−'} extra charges {formatPrice(Math.abs(extraChargeTotal))}</>}
                                 {' = '}

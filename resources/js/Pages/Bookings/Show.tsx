@@ -136,6 +136,19 @@ export default function BookingShow({ booking }: BookingShowProps) {
                                     </div>
                                 )}
 
+                                {['confirmed', 'active'].includes(booking.status) && (
+                                    <div className="mt-8 flex flex-wrap gap-3">
+                                        <Link href={route('bookings.extend.page', booking.id)}
+                                            className="px-6 py-3 bg-brand-800 text-white font-medium rounded-xl hover:bg-brand-700 transition-all duration-200 shadow-md shadow-brand-200/30 text-sm">
+                                            Extend Rental
+                                        </Link>
+                                        <Link href={route('bookings.swap.page', booking.id)}
+                                            className="px-6 py-3 bg-white text-brand-800 font-medium rounded-xl hover:bg-brand-50 transition-all duration-200 border-2 border-brand-800/20 text-sm">
+                                            Swap Vehicle
+                                        </Link>
+                                    </div>
+                                )}
+
                                 <div className="mt-6">
                                     <Link href={route('bookings.index')}
                                         className="inline-flex items-center gap-2 text-sm text-brand-800 hover:text-brand-700 transition-colors font-medium">

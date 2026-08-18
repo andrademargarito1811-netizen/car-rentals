@@ -90,10 +90,16 @@ const CAR_IMAGES = [
 
 const VEHICLE_TYPE_COLORS: Record<string, { bg: string; text: string; border: string }> = {
     'Economy': { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
+    'Compact': { bg: 'bg-teal-50', text: 'text-teal-700', border: 'border-teal-200' },
+    'Midsize SUV': { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
+    'Full Size SUV': { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-200' },
+    'Regular SUV': { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
     'SUV': { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
     "Regular SUV'S": { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
     'Vans': { bg: 'bg-violet-50', text: 'text-violet-700', border: 'border-violet-200' },
+    'Fullsize Van': { bg: 'bg-violet-50', text: 'text-violet-700', border: 'border-violet-200' },
     'Full Size Van': { bg: 'bg-violet-50', text: 'text-violet-700', border: 'border-violet-200' },
+    'FlatBeds': { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
     'Flatbeds': { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200' },
     'Luxury': { bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-200' },
 };
@@ -727,7 +733,7 @@ export default function BookingEdit({ booking, cars, locations, isGuest = false 
                 })}
             >
                 <div className="py-8 sm:py-12">
-                    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className={`mx-auto px-4 sm:px-6 lg:px-8 transition-all duration-300 ${currentStep === 0 ? 'max-w-7xl' : 'max-w-4xl'}`}>
                         <div className="mb-6">
                             <Link
                                 href={route(isGuest ? 'bookings.guest.show' : 'bookings.show', isGuest ? booking.reference_code! : booking.id)}
@@ -795,7 +801,7 @@ export default function BookingEdit({ booking, cars, locations, isGuest = false 
                             {/* Step 1: Vehicle */}
                             <div key={`step-${currentStep}-${direction}`} className="animate-fade-in-up">
                                 {currentStep === 0 && (
-                                    <div className="card p-6 sm:p-8">
+                                    <div className="card p-4 sm:p-6">
                                         <div className="flex items-center gap-3 mb-6">
                                             <span className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-br from-brand-500 to-brand-600 text-white text-xs font-bold shadow-md shadow-brand-200">1</span>
                                             <div>
@@ -853,7 +859,7 @@ export default function BookingEdit({ booking, cars, locations, isGuest = false 
                                                         </span>
                                                         <span className="text-[11px] text-surface-400 font-medium">{typeCars.length} vehicle{typeCars.length !== 1 ? 's' : ''}</span>
                                                     </div>
-                                                    <div className="space-y-2.5" ref={carListRef} onKeyDown={handleCarKeyDown} role="listbox" tabIndex={-1}>
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4" ref={carListRef} onKeyDown={handleCarKeyDown} role="listbox" tabIndex={-1}>
                                                         {typeCars.map(car => {
                                                             const isSelected = Number(form.data.car_id) === car.id;
                                                             const rateDiff = car.daily_rate - originalCarDailyRate;
@@ -869,41 +875,64 @@ export default function BookingEdit({ booking, cars, locations, isGuest = false 
                                                                     role="option"
                                                                     aria-selected={isSelected}
                                                                     onClick={() => form.setData('car_id', car.id)}
-                                                                    className={`w-full flex items-center gap-2.5 p-3 rounded-2xl border-2 transition-all duration-200 text-left group ${
+                                                                    className={`w-full flex flex-col overflow-hidden rounded-2xl border-2 transition-all duration-200 text-left group ${
                                                                         isSelected
                                                                             ? 'border-brand-500 bg-brand-50/80 shadow-sm shadow-brand-200/20 ring-1 ring-brand-500/20'
-                                                                            : 'border-surface-100 bg-white hover:border-surface-200 hover:shadow-sm'
+                                                                            : 'border-surface-100 bg-white hover:border-surface-200 hover:shadow-md hover:-translate-y-0.5'
                                                                     }`}
                                                                 >
-                                                                    {/* Image (clickable for preview) */}
-                                                                    <div className="relative w-[76px] h-[60px] rounded-xl overflow-hidden shrink-0 bg-surface-100 cursor-pointer"
+                                                                    {/* Image (16:9, clickable for preview) */}
+                                                                    <div className="relative w-full aspect-video overflow-hidden bg-surface-100 cursor-pointer"
                                                                         onClick={e => { e.stopPropagation(); setPreviewImg(getCarImage(car.image_path, car.id)); }}>
                                                                         <img
                                                                             src={getCarImage(car.image_path, car.id)}
                                                                             alt={`${car.brand} ${car.model}`}
                                                                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                                                                         />
-                                                                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-200 flex items-center justify-center">
-                                                                            <svg className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200 drop-shadow-md" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+                                                                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300 flex items-center justify-center">
+                                                                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/95 text-surface-700 text-[11px] font-bold opacity-0 group-hover:opacity-100 transition-opacity duration-200 shadow-md backdrop-blur">
+                                                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                                                </svg>
+                                                                                Quick View
+                                                                            </span>
+                                                                        </div>
+                                                                        {isOriginal && (
+                                                                            <span className="absolute top-2.5 left-2.5 inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200 shadow-sm">
+                                                                                Current
+                                                                            </span>
+                                                                        )}
+                                                                        {/* Compare toggle */}
+                                                                        <div role="button" tabIndex={0} onClick={e => { e.stopPropagation(); toggleCompare(car.id); }}
+                                                                            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); toggleCompare(car.id); } }}
+                                                                            className={`absolute top-2.5 right-2.5 flex items-center justify-center w-7 h-7 rounded-lg border-2 bg-white/90 backdrop-blur-sm shadow-sm transition-all duration-200 cursor-pointer ${
+                                                                                inCompare
+                                                                                    ? 'border-brand-500 bg-brand-500 text-white'
+                                                                                    : 'border-white/60 text-surface-500 hover:border-brand-300 hover:text-brand-600'
+                                                                            }`}
+                                                                            title={inCompare ? 'Remove from compare' : 'Add to compare'}
+                                                                            aria-label={inCompare ? 'Remove from compare' : 'Add to compare'}>
+                                                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                                                                             </svg>
                                                                         </div>
+                                                                        {isSelected && (
+                                                                            <div className="absolute bottom-2.5 right-2.5 flex items-center justify-center w-7 h-7 rounded-full bg-brand-500 shadow-md">
+                                                                                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                                                                                </svg>
+                                                                            </div>
+                                                                        )}
                                                                     </div>
 
-                                                                    {/* Details */}
-                                                                    <div className="flex-1 min-w-0">
-                                                                        <div className="flex items-center gap-2">
-                                                                            <p className="text-sm font-bold text-surface-900 truncate">
-                                                                                {car.brand} {car.model}
-                                                                                <span className="font-normal text-surface-400 ml-1">({car.year})</span>
-                                                                            </p>
-                                                                            {isOriginal && (
-                                                                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200 shrink-0">
-                                                                                    Current
-                                                                                </span>
-                                                                            )}
-                                                                        </div>
-                                                                        <div className="flex items-center gap-2.5 mt-1">
+                                                                    {/* Body */}
+                                                                    <div className="flex-1 min-w-0 p-3.5">
+                                                                        <p className="text-[15px] font-bold text-surface-900 truncate">
+                                                                            {car.brand} {car.model}
+                                                                            <span className="font-normal text-surface-400 ml-1">({car.year})</span>
+                                                                        </p>
+                                                                        <div className="flex items-center gap-2.5 mt-1.5">
                                                                             {car.seats && (
                                                                                 <span className="flex items-center gap-1 text-[11px] text-surface-400">
                                                                                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -932,54 +961,39 @@ export default function BookingEdit({ booking, cars, locations, isGuest = false 
                                                                         </div>
                                                                     </div>
 
-                                                                    {/* Price + Total */}
-                                                                    <div className="text-right shrink-0 min-w-[80px]">
-                                                                        <p className={`text-sm font-bold ${isSelected ? 'text-brand-700' : 'text-surface-900'}`}>{formatPrice(car.daily_rate)}</p>
-                                                                        <p className="text-[10px] text-surface-400 font-medium">per day</p>
-                                                                        {rateDiff !== 0 && (
-                                                                            <p className={`text-[10px] font-semibold mt-0.5 ${rateDiff > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
-                                                                                {rateDiff > 0 ? '+' : ''}{formatPrice(rateDiff)} vs current
-                                                                            </p>
-                                                                        )}
-                                                                        {billingDays > 0 && (
-                                                                            <>
-                                                                                <div className="w-full h-px bg-surface-200/60 my-1.5" />
-                                                                                <p className={`text-[11px] font-bold ${isSelected ? 'text-brand-600' : 'text-surface-600'}`}>
-                                                                                    {formatPrice(totalCost)}
-                                                                                </p>
-                                                                                <p className="text-[9px] text-surface-400">total</p>
-                                                                                {billingDays >= 7 && (
-                                                                                    <span className="inline-flex items-center px-1.5 py-0.5 mt-1 rounded text-[8px] font-bold bg-accent-50 text-accent-700 border border-accent-200 whitespace-nowrap">
-                                                                                        {billingDays >= 30 ? 'Monthly' : 'Weekly'} discount available
-                                                                                    </span>
+                                                                    {/* Price footer */}
+                                                                    <div className="px-3.5 pb-3.5">
+                                                                        <div className="pt-3 border-t border-surface-100/80">
+                                                                            <div className="flex items-baseline justify-between gap-2">
+                                                                                <div className="flex items-baseline gap-1 min-w-0">
+                                                                                    <span className={`text-lg font-extrabold ${isSelected ? 'text-brand-700' : 'text-surface-900'}`}>{formatPrice(car.daily_rate)}</span>
+                                                                                    <span className="text-[10px] text-surface-400 font-medium whitespace-nowrap">per day</span>
+                                                                                </div>
+                                                                                {billingDays > 0 && (
+                                                                                    <div className="flex items-baseline gap-1 shrink-0">
+                                                                                        <span className={`text-sm font-bold ${isSelected ? 'text-brand-600' : 'text-surface-600'}`}>{formatPrice(totalCost)}</span>
+                                                                                        <span className="text-[9px] text-surface-400 whitespace-nowrap">total</span>
+                                                                                    </div>
                                                                                 )}
-                                                                            </>
-                                                                        )}
-                                                                    </div>
-
-                                                                    {/* Compare toggle */}
-                                                                    <div role="button" tabIndex={0} onClick={e => { e.stopPropagation(); toggleCompare(car.id); }}
-                                                                        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); toggleCompare(car.id); } }}
-                                                                        className={`shrink-0 flex items-center justify-center w-7 h-7 rounded-lg border-2 transition-all duration-200 cursor-pointer ${
-                                                                            inCompare
-                                                                                ? 'bg-brand-500 border-brand-500 text-white'
-                                                                                : 'border-surface-200 text-surface-300 hover:border-surface-300 hover:text-surface-400'
-                                                                        }`}
-                                                                        title={inCompare ? 'Remove from compare' : 'Add to compare'}
-                                                                        aria-label={inCompare ? 'Remove from compare' : 'Add to compare'}>
-                                                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                                                                        </svg>
-                                                                    </div>
-
-                                                                    {/* Check */}
-                                                                    {isSelected && (
-                                                                        <div className="flex items-center justify-center w-6 h-6 rounded-full bg-brand-500 shrink-0">
-                                                                            <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
-                                                                            </svg>
+                                                                            </div>
+                                                                            {(rateDiff !== 0 || billingDays >= 7) && (
+                                                                                <div className="flex items-center justify-between gap-2 mt-1.5">
+                                                                                    {rateDiff !== 0 ? (
+                                                                                        <span className={`text-[10px] font-semibold ${rateDiff > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
+                                                                                            {rateDiff > 0 ? '+' : ''}{formatPrice(rateDiff)} vs current
+                                                                                        </span>
+                                                                                    ) : (
+                                                                                        <span />
+                                                                                    )}
+                                                                                    {billingDays >= 7 && (
+                                                                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-accent-50 text-accent-700 border border-accent-200 whitespace-nowrap">
+                                                                                            {billingDays >= 30 ? 'Monthly' : 'Weekly'} discount
+                                                                                        </span>
+                                                                                    )}
+                                                                                </div>
+                                                                            )}
                                                                         </div>
-                                                                    )}
+                                                                    </div>
                                                                 </button>
                                                             );
                                                         })}

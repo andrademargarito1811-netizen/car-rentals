@@ -33,6 +33,7 @@ import {
   Clipboard,
   Copy,
   ArrowLeft,
+  ArrowRight,
   Printer,
   Clock,
   ChevronRight,
@@ -51,12 +52,23 @@ import {
   BadgeCheck,
   XCircle,
   Building2,
+  CalendarPlus,
+  CalendarClock,
+  ArrowRightLeft,
+  Banknote,
+  Receipt,
+  Undo2,
+  Activity,
+  ChevronDown,
+  ZoomIn,
+  EllipsisVertical,
 } from 'lucide-react';
 import CheckinVehicleSheet from './CheckinVehicleSheet';
 import RecordPaymentSheet from './RecordPaymentSheet';
 import EditPaymentSheet from './EditPaymentSheet';
+import ImageLightbox from '@/Components/ImageLightbox';
 import { PaymentItem, formatPrice, sortPaymentsNewest } from './PaymentItem';
-import type { AdminBooking, BookingPayment } from './types';
+import type { AdminBooking, BookingPayment, TimelineEvent } from './types';
 
 interface AdminBookingsShowProps {
     booking: AdminBooking;
@@ -112,6 +124,10 @@ function formatTime(time: string | null): string {
     return `${hour12}:${minutes} ${ampm}`;
 }
 
+function formatHandoverTime(date: string): string {
+    return new Date(date).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+}
+
 function formatRelativeDate(date: string): string {
     const now = new Date();
     const d = new Date(date);
@@ -138,6 +154,33 @@ function statusOptions(): { value: string; label: string }[] {
         { value: 'completed', label: 'Completed' },
         { value: 'cancelled', label: 'Cancelled' },
     ];
+}
+
+function statusDotClass(status: string): string {
+    switch (status) {
+        case 'confirmed': return 'bg-blue-500';
+        case 'active': return 'bg-emerald-500';
+        case 'pending': return 'bg-amber-500';
+        case 'cancelled': return 'bg-red-500';
+        default: return 'bg-surface-400';
+    }
+}
+
+function SpecChip({ spec }: { spec: { icon: typeof Car; label: string; value: string | null; color: string } }) {
+    const hasValue = spec.value !== null && spec.value !== undefined;
+    return (
+        <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/30 border">
+            <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${spec.color}`}>
+                <spec.icon className="w-3.5 h-3.5" />
+            </div>
+            <div className="min-w-0">
+                <p className="text-[10px] font-medium text-muted-foreground">{spec.label}</p>
+                <p className={`text-xs font-semibold font-mono truncate ${hasValue ? 'text-foreground' : 'text-muted-foreground/40'}`}>
+                    {hasValue ? spec.value : '—'}
+                </p>
+            </div>
+        </div>
+    );
 }
 
 const BOOKING_STATUS_FLOW = [
@@ -189,6 +232,76 @@ function FuelBar({ level, tone }: { level: number | null | undefined; tone: 'eme
     );
 }
 
+const TIMELINE_STYLES: Record<TimelineEvent['type'], { icon: typeof CalendarPlus; className: string }> = {
+    created: { icon: CalendarPlus, className: 'bg-primary/10 text-primary ring-primary/10' },
+    status: { icon: BadgeCheck, className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 ring-blue-600/10 dark:ring-blue-400/10' },
+    payment: { icon: Banknote, className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 ring-emerald-600/10 dark:ring-emerald-400/10' },
+    refund: { icon: Undo2, className: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 ring-purple-600/10 dark:ring-purple-400/10' },
+    extension: { icon: CalendarPlus, className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 ring-amber-600/10 dark:ring-amber-400/10' },
+    rebook: { icon: ArrowRightLeft, className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 ring-amber-600/10 dark:ring-amber-400/10' },
+    swap: { icon: ArrowRightLeft, className: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400 ring-violet-600/10 dark:ring-violet-400/10' },
+    modified: { icon: PenLine, className: 'bg-surface-100 text-surface-600 dark:bg-surface-700/50 dark:text-surface-400 ring-surface-400/10' },
+    rescheduled: { icon: Calendar, className: 'bg-surface-100 text-surface-600 dark:bg-surface-700/50 dark:text-surface-400 ring-surface-400/10' },
+    cancelled: { icon: XCircle, className: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 ring-red-600/10 dark:ring-red-400/10' },
+    charges: { icon: Receipt, className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 ring-amber-600/10 dark:ring-amber-400/10' },
+    checkout: { icon: Car, className: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 ring-indigo-600/10 dark:ring-indigo-400/10' },
+    checkin: { icon: CheckCircle2, className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 ring-emerald-600/10 dark:ring-emerald-400/10' },
+    other: { icon: Activity, className: 'bg-surface-100 text-surface-600 dark:bg-surface-700/50 dark:text-surface-400 ring-surface-400/10' },
+};
+
+function ActivityTimeline({ events }: { events: TimelineEvent[] }) {
+    if (!events.length) return null;
+
+    return (
+        <Card className="flex flex-col">
+            <CardHeader className="p-4 pb-2 shrink-0">
+                <CardTitle className="flex items-center gap-2 text-sm">
+                    <Activity className="w-4 h-4 text-primary" />
+                    Activity Timeline
+                </CardTitle>
+                <CardDescription>
+                    Status changes, extensions, payments and handovers for this reservation.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="p-4">
+                <div>
+                    {events.map((ev, i) => {
+                        const style = TIMELINE_STYLES[ev.type] ?? TIMELINE_STYLES.other;
+                        const Icon = style.icon;
+                        const last = i === events.length - 1;
+                        return (
+                            <div key={ev.id} className="relative flex gap-3 pb-5 last:pb-0">
+                                <div className="relative flex flex-col items-center shrink-0">
+                                    <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ring-4 ${style.className}`}>
+                                        <Icon className="h-3.5 w-3.5" />
+                                    </span>
+                                    {!last && <span className="mt-1 w-px flex-1 bg-border" />}
+                                </div>
+                                <div className="min-w-0 pb-1">
+                                    <p className="text-sm font-semibold text-foreground leading-tight">{ev.title}</p>
+                                    {ev.description && (
+                                        <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{ev.description}</p>
+                                    )}
+                                    <p className="text-[11px] text-muted-foreground/70 mt-1">
+                                        {ev.at ? formatDateTime(ev.at) : ''}
+                                        {ev.user ? ` · ${ev.user}` : ''}
+                                    </p>
+                                    {ev.related_booking_id && (
+                                        <Link href={route('admin.bookings.show', ev.related_booking_id)} className="mt-1 inline-flex items-center gap-1 text-xs font-bold text-primary hover:underline">
+                                            View #{ev.related_reference}
+                                            <ChevronRight className="w-3 h-3" />
+                                        </Link>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
+
 export default function AdminBookingsShow({ booking, extraCharges = [] }: AdminBookingsShowProps) {
     const route = useRoute();
     const form = useForm({
@@ -202,6 +315,8 @@ export default function AdminBookingsShow({ booking, extraCharges = [] }: AdminB
     const [editingPayment, setEditingPayment] = useState<BookingPayment | null>(null);
     const [carImageError, setCarImageError] = useState(false);
     const [confirmCancel, setConfirmCancel] = useState(false);
+    const [showMoreSpecs, setShowMoreSpecs] = useState(false);
+    const [zoomImage, setZoomImage] = useState<string | null>(null);
     const popoverStatusOptions = statusOptions().filter(o => !['active', 'completed'].includes(o.value));
 
     useEffect(() => {
@@ -250,14 +365,23 @@ export default function AdminBookingsShow({ booking, extraCharges = [] }: AdminB
     const pickup = booking.pickup_handover;
     const days = getDaysDifference(booking.start_date, booking.end_date);
 
-    const rentalSubtotal = Number(booking.car?.daily_rate ?? 0) * days;
+    const hasSwaps = (booking.swaps ?? []).length > 0;
+    const rentalSegments = (booking.swap_segments ?? []).length > 0 ? booking.swap_segments : null;
+    const rentalSubtotal = rentalSegments
+        ? rentalSegments.reduce((sum, seg) => sum + (Number(seg.subtotal) || 0), 0)
+        : Number(booking.car?.daily_rate ?? 0) * days;
+    const taxLines = (booking.booking_taxes ?? []).map(t => ({
+        desc: t.tax_desc,
+        amount: Math.round((t.add_or_minus ? 1 : -1) * Number(t.amount) * 100) / 100,
+    }));
+    const taxesTotal = taxLines.reduce((sum, t) => sum + t.amount, 0);
     const handoverChargesTotal = Number(booking.handover_charges?.total ?? 0);
     const extraChargesTotal = (booking.extra_charges ?? []).reduce((sum, c) => {
         const amt = Number(c.amount) + Number(c.tax_amount);
         return sum + (c.operator === '-' ? -amt : amt);
     }, 0);
     const couponDiscount = Number(booking.coupon_usage?.discount_amount ?? 0);
-    const otherCharges = Math.max(0, totalAmount - rentalSubtotal - handoverChargesTotal - extraChargesTotal - couponDiscount);
+    const adjustments = Math.round((totalAmount - rentalSubtotal - taxesTotal - handoverChargesTotal - extraChargesTotal - couponDiscount) * 100) / 100;
     const paymentPercent = totalAmount > 0 ? Math.min(100, Math.round((totalPaid / totalAmount) * 100)) : 0;
     const statusIndex = BOOKING_STATUS_FLOW.findIndex(s => s.value === booking.status);
 
@@ -265,79 +389,147 @@ export default function AdminBookingsShow({ booking, extraCharges = [] }: AdminB
     const customerEmail = getCustomerEmail(booking);
     const customerPhone = getCustomerPhone(booking);
     const initials = getInitials(customerName);
+    const extensionSource = booking.extension_source;
+    const extensionChildren = booking.extension_children ?? [];
+    const carImageSrc = booking.car?.image_path ? `/storage/${booking.car.image_path}` : null;
     const start = new Date(booking.start_date);
     const end = new Date(booking.end_date);
+
+    const isClosed = ['completed', 'cancelled'].includes(booking.status);
+    const canModify = ['pending', 'confirmed'].includes(booking.status);
+    const canExtend = ['confirmed', 'active'].includes(booking.status);
+    const showPayment = remainingBalance > 0 && !isFullyRefunded;
+    const showStatus = !isClosed;
+    const hasMoreActions = canModify || canExtend;
+    const hasExtension = Boolean(extensionSource || extensionChildren.length > 0);
+    const hasHandover = Boolean(booking.pickup_handover || booking.return_handover);
+    const timelineRowClass = hasExtension ? 'xl:row-start-3' : 'xl:row-start-2';
+    const activityTimeline = (
+        <div className={`xl:col-start-3 self-start ${timelineRowClass} ${!hasExtension && hasHandover ? 'xl:row-span-2' : ''}`}>
+            <ActivityTimeline events={booking.timeline ?? []} />
+        </div>
+    );
 
     return (
         <>
             <Head title={`Booking #${booking.reference_code ?? booking.id}`} />
 
-            <AuthenticatedLayout
-                header={
-                    <div className="border-b border-border bg-gradient-to-b from-muted/30 to-background">
-                        <div className="relative max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
-                            <nav className="flex items-center gap-2 text-sm text-muted-foreground mb-3">
-                                <Link href={route('admin.reservations.index')} className="hover:text-foreground transition-colors">
-                                    Reservations
-                                </Link>
-                                <ChevronRight className="w-3.5 h-3.5" />
-                                <span className="text-foreground font-medium truncate">
-                                    {booking.reference_code ?? `#${String(booking.id).padStart(4, '0')}`}
-                                </span>
-                            </nav>
-                            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-                                <div className="flex items-center gap-4">
-                                    <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-primary/10 text-primary ring-1 ring-primary/20 shrink-0">
-                                        <Clipboard className="w-6 h-6" />
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-muted-foreground font-medium mb-0.5">Booking Reference</p>
-                                        <div className="flex items-center gap-2">
-                                            <h2 className="text-2xl sm:text-3xl font-bold text-foreground tracking-tight">
-                                                {booking.reference_code ?? `#${String(booking.id).padStart(4, '0')}`}
-                                            </h2>
+            <AuthenticatedLayout>
+                <div className="px-4 sm:px-6 lg:px-8 py-4 space-y-4 max-w-screen-2xl mx-auto">
+                    {/* Immersive hero */}
+                    <div className="relative overflow-hidden rounded-3xl border border-surface-200 dark:border-surface-700 shadow-elevated">
+                        <div className="relative h-56 sm:h-64">
+                            {booking.car.image_path && !carImageError ? (
+                                <img
+                                    src={`/storage/${booking.car.image_path}`}
+                                    alt={`${booking.car.brand} ${booking.car.model}`}
+                                    loading="lazy"
+                                    onError={() => setCarImageError(true)}
+                                    className="w-full h-full object-cover"
+                                />
+                            ) : (
+                                <div className={`w-full h-full ${carColorClass(booking.car.color)}`} />
+                            )}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-black/20" />
+
+                            <div className="absolute inset-x-0 top-0 p-4 sm:p-5 flex items-center justify-between gap-3">
+                                <nav className="flex items-center gap-1.5 text-xs font-medium text-white/80 min-w-0">
+                                    <Link href={route('admin.reservations.index')} className="hover:text-white transition-colors shrink-0">
+                                        Reservations
+                                    </Link>
+                                    <ChevronRight className="w-3 h-3 shrink-0" />
+                                    <span className="text-white truncate">{booking.reference_code ?? `#${booking.id}`}</span>
+                                </nav>
+                                <div className="flex items-center gap-2">
+                                    <span className="shrink-0 inline-flex items-center gap-1.5 text-[11px] font-medium text-white/80 bg-black/30 backdrop-blur px-2.5 py-1 rounded-full border border-white/10">
+                                        <Clock className="w-3 h-3" />
+                                        {formatRelativeDate(booking.created_at)}
+                                    </span>
+                                    {carImageSrc && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setZoomImage(carImageSrc)}
+                                            className="shrink-0 inline-flex h-7 w-7 items-center justify-center rounded-full bg-black/30 backdrop-blur border border-white/10 text-white/80 hover:text-white hover:bg-black/40 transition-colors"
+                                            aria-label="Zoom vehicle image"
+                                            title="Click to zoom"
+                                        >
+                                            <ZoomIn className="w-3.5 h-3.5" />
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="absolute inset-x-0 bottom-0 p-4 sm:p-5">
+                                <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+                                    <div className="min-w-0">
+                                        <p className="text-[11px] font-semibold uppercase tracking-widest text-white/60">Booking Reference</p>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
+                                                {booking.reference_code ?? `#${booking.id}`}
+                                            </h1>
                                             <Button
                                                 type="button"
                                                 variant="ghost"
                                                 size="icon"
-                                                className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground"
+                                                className="h-8 w-8 rounded-lg bg-white/10 text-white hover:bg-white/20"
                                                 onClick={copyBookingId}
                                                 title="Copy booking ID"
                                             >
                                                 <Copy className="w-4 h-4" />
                                             </Button>
                                         </div>
-                                        <div className="flex items-center gap-2 mt-1">
-                                            <span className="text-xs text-muted-foreground flex items-center gap-1">
-                                                <User className="w-3 h-3" />
-                                                {customerName}
-                                            </span>
-                                            <span className="text-muted-foreground/40">|</span>
-                                            <span className="text-xs text-muted-foreground flex items-center gap-1">
-                                                <Calendar className="w-3 h-3" />
-                                                {formatDate(booking.start_date)} — {formatDate(booking.end_date)}
-                                            </span>
+                                        <div className="flex flex-wrap items-center gap-2 mt-2">
+                                            <Badge variant={booking.status as 'pending' | 'confirmed' | 'active' | 'completed' | 'cancelled'}>
+                                                {statusOptions().find(o => o.value === booking.status)?.label ?? booking.status}
+                                            </Badge>
+                                            {isFullyRefunded && (
+                                                <Badge variant="payment_refunded">Fully Refunded</Badge>
+                                            )}
+                                        </div>
+                                        <p className="text-sm text-white/80 mt-2 flex items-center gap-1.5">
+                                            <User className="w-3.5 h-3.5" />
+                                            {customerName}
+                                            <span className="text-white/40">·</span>
+                                            <span>{formatDate(booking.start_date)} — {formatDate(booking.end_date)}</span>
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                        <div className="bg-white/10 backdrop-blur border border-white/15 rounded-xl px-3.5 py-2 text-center">
+                                            <p className="text-[10px] font-semibold uppercase tracking-wider text-white/60">Paid</p>
+                                            <p className="text-lg font-bold text-white tabular-nums">{formatPrice(totalPaid)}</p>
+                                        </div>
+                                        <div className="bg-white/10 backdrop-blur border border-white/15 rounded-xl px-3.5 py-2 text-center">
+                                            <p className="text-[10px] font-semibold uppercase tracking-wider text-white/60">Total</p>
+                                            <p className="text-lg font-bold text-white tabular-nums">{formatPrice(totalAmount)}</p>
+                                        </div>
+                                        <div className="bg-white/10 backdrop-blur border border-white/15 rounded-xl px-3.5 py-2 text-center">
+                                            <p className="text-[10px] font-semibold uppercase tracking-wider text-white/60">Duration</p>
+                                            <p className="text-lg font-bold text-white tabular-nums">{days}d</p>
                                         </div>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-3 shrink-0">
-                                    <span className="text-xs text-muted-foreground flex items-center gap-1.5 bg-muted/60 px-3 py-1.5 rounded-lg border">
-                                        <Clock className="w-3.5 h-3.5" />
-                                        {formatRelativeDate(booking.created_at)}
-                                    </span>
-                                    <Badge variant={booking.status as 'pending' | 'confirmed' | 'active' | 'completed' | 'cancelled'}>
-                                        {statusOptions().find(o => o.value === booking.status)?.label ?? booking.status}
-                                    </Badge>
-                                    {isFullyRefunded && (
-                                        <Badge variant="payment_refunded">Fully Refunded</Badge>
-                                    )}
-                                </div>
                             </div>
                         </div>
+
+                        {/* Next action strip */}
+                        <div className="bg-white dark:bg-brand-900 px-4 sm:px-5 py-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-surface-100 dark:border-surface-700">
+                            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Next</span>
+                            <span className="text-sm font-medium text-foreground">
+                                {booking.status === 'pending'
+                                    ? 'Confirm this booking and record the downpayment.'
+                                    : booking.status === 'confirmed'
+                                        ? 'Check out the vehicle — record the pickup handover before the guest leaves.'
+                                        : booking.status === 'active'
+                                            ? remainingBalance > 0
+                                                ? `Collect ${formatPrice(remainingBalance)} and check the vehicle back in.`
+                                                : 'Record the return handover to complete this rental.'
+                                            : booking.status === 'completed'
+                                                ? 'This rental is complete. Use the invoice for a record of the trip.'
+                                                : 'This reservation is cancelled.'}
+                            </span>
+                        </div>
                     </div>
-                }
-            >
-                <div className="px-4 sm:px-6 lg:px-8 py-6 space-y-6 max-w-screen-2xl mx-auto">
+
                     {/* Booking Lifecycle */}
                     <Card>
                         <CardContent className="p-4 sm:p-5">
@@ -410,526 +602,385 @@ export default function AdminBookingsShow({ booking, extraCharges = [] }: AdminB
                         </CardContent>
                     </Card>
 
-                    {/* Summary Stats */}
-                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-                        <Card>
-                            <CardContent className="p-4">
-                                <p className="text-xs text-muted-foreground font-medium mb-1">Duration</p>
-                                <p className="text-xl font-bold text-foreground">{days} day{days !== 1 ? 's' : ''}</p>
-                            </CardContent>
-                        </Card>
-                        <Card>
-                            <CardContent className="p-4">
-                                <p className="text-xs text-muted-foreground font-medium mb-1">Period</p>
-                                <p className="text-sm font-semibold text-foreground">
-                                    {start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} — {end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                                </p>
-                            </CardContent>
-                        </Card>
-                        <Card>
-                            <CardContent className="p-4">
-                                <p className="text-xs text-muted-foreground font-medium mb-1">Total</p>
-                                <p className="text-xl font-bold text-foreground">{formatPrice(booking.total_amount)}</p>
-                            </CardContent>
-                        </Card>
-                    </div>
-
-                    {/* Sidebar + Main Content */}
-                    <div className="flex flex-col lg:flex-row gap-6">
-                        {/* Left Sidebar */}
-                        <div className="w-full lg:w-80 shrink-0 space-y-6">
-                            <div className="lg:sticky lg:top-6 space-y-6">
-                                {/* Unified Sidebar Card */}
-                                <Card>
-                                    {/* Customer Section */}
-                                    <CardContent className="p-5">
-                                        <div className="flex items-center gap-3 mb-3">
-                                            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-bold text-sm shrink-0">
-                                                {initials}
-                                            </div>
-                                            <div className="min-w-0 flex-1">
-                                                <p className="font-semibold text-foreground truncate">{customerName}</p>
-                                                <Badge variant="outline" className="text-[10px] h-5 px-1.5 mt-0.5">
-                                                    {booking.user ? 'Registered' : 'Guest'}
-                                                </Badge>
-                                            </div>
+                    {/* Bento grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                        {/* Vehicle tile */}
+                        <div className="md:col-span-2">
+                            {booking.car ? (
+                                <Card className="overflow-hidden h-full">
+                                    <CardHeader className="p-4 pb-0 flex-row items-center justify-between gap-2">
+                                        <CardTitle className="text-sm flex items-center gap-2">
+                                            <Car className="w-4 h-4 text-primary" />
+                                            Vehicle
+                                        </CardTitle>
+                                        <div className="flex items-center gap-1">
+                                            <Link href={route('admin.cars.edit', booking.car.id)}>
+                                                <Button variant="ghost" size="icon" className="h-8 w-8" title="Edit car">
+                                                    <PenLine className="w-4 h-4" />
+                                                </Button>
+                                            </Link>
+                                            <Link href={route('admin.cars.schedule', { car: booking.car.id })}>
+                                                <Button variant="ghost" size="icon" className="h-8 w-8" title="View schedule">
+                                                    <CalendarClock className="w-4 h-4" />
+                                                </Button>
+                                            </Link>
                                         </div>
-                                        <div className="space-y-1.5">
-                                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                                <Mail className="w-3.5 h-3.5 shrink-0" />
-                                                <span className="truncate">{customerEmail}</span>
-                                            </div>
-                                            {customerPhone && (
-                                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                                    <Phone className="w-3.5 h-3.5 shrink-0" />
-                                                    <span>{customerPhone}</span>
-                                                </div>
-                                            )}
-                                        </div>
-                                        {(booking.user?.address || booking.guest?.address) && (
-                                            <div className="mt-2 flex items-start gap-2 text-xs text-muted-foreground">
-                                                <MapPin className="w-3 h-3 mt-0.5 shrink-0" />
-                                                <span>
-                                                    {booking.user
-                                                        ? booking.user.address
-                                                        : [
-                                                            booking.guest?.address,
-                                                            booking.guest?.address2,
-                                                            booking.guest?.city,
-                                                            booking.guest?.state,
-                                                            booking.guest?.postal_code,
-                                                            booking.guest?.country,
-                                                        ].filter(Boolean).join(', ')}
-                                                </span>
-                                            </div>
-                                        )}
-                                        {booking.guest?.driver_age && (
-                                            <div className="mt-1.5 flex items-center gap-2 text-xs text-muted-foreground">
-                                                <User className="w-3 h-3 shrink-0" />
-                                                <span>Driver age: {booking.guest.driver_age}</span>
-                                            </div>
-                                        )}
-                                        {booking.guest?.flight_no && (
-                                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                                <span className="font-mono text-[10px]">✈</span>
-                                                <span>Flight: {booking.guest.flight_no}</span>
-                                            </div>
-                                        )}
-                                        {booking.guest?.company_name && (
-                                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                                <Building2 className="w-3 h-3 shrink-0" />
-                                                <span>Company: {booking.guest.company_name}</span>
-                                            </div>
-                                        )}
-                                    </CardContent>
-
-                                    <Separator />
-
-                                    {/* Booking Summary */}
-                                    <CardContent className="p-5">
-                                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Booking Summary</p>
-                                        <div className="space-y-1.5">
-                                            <div className="flex items-center justify-between text-sm">
-                                                <span className="text-muted-foreground">Rental &middot; {days} day{days !== 1 ? 's' : ''}</span>
-                                                <span className="font-medium text-foreground">{formatPrice(rentalSubtotal)}</span>
-                                            </div>
-                                            {handoverChargesTotal > 0 && (
-                                                <div className="flex items-center justify-between text-sm">
-                                                    <span className="text-muted-foreground">Handover charges</span>
-                                                    <span className="font-medium text-foreground">{formatPrice(handoverChargesTotal)}</span>
-                                                </div>
-                                            )}
-                                            {(booking.extra_charges ?? []).map((c) => (
-                                                <div key={c.id} className="flex items-center justify-between text-sm">
-                                                    <span className="text-muted-foreground">{c.name}</span>
-                                                    <span className="font-medium text-foreground">{c.operator === '-' ? '-' : ''}{formatPrice(Number(c.amount) + Number(c.tax_amount))}</span>
-                                                </div>
-                                            ))}
-                                            {booking.coupon_usage && couponDiscount > 0 && (
-                                                <div className="flex items-center justify-between text-sm">
-                                                    <span className="text-emerald-600 font-medium">Coupon ({booking.coupon_usage.code})</span>
-                                                    <span className="text-emerald-600 font-medium">-{formatPrice(couponDiscount)}</span>
-                                                </div>
-                                            )}
-                                            {otherCharges > 0 && (
-                                                <div className="flex items-center justify-between text-sm">
-                                                    <span className="text-muted-foreground">Taxes &amp; fees</span>
-                                                    <span className="font-medium text-foreground">{formatPrice(otherCharges)}</span>
-                                                </div>
-                                            )}
-                                            <div className="flex items-center justify-between border-t pt-1.5">
-                                                <span className="text-sm font-semibold text-foreground">Total</span>
-                                                <span className="text-base font-bold text-foreground">{formatPrice(totalAmount)}</span>
-                                            </div>
-                                        </div>
-                                        <p className="text-xs text-muted-foreground mt-2">
-                                            {formatDate(booking.start_date)} {formatTime(booking.pickup_time)} &mdash; {formatDate(booking.end_date)} {formatTime(booking.return_time)}
-                                        </p>
-                                    </CardContent>
-
-                                    <Separator />
-
-                                    {/* Payment Summary */}
-                                    <CardContent className="p-5">
-                                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Payments</p>
-                                        <div className="flex items-center justify-between mb-1.5">
-                                            <span className="text-sm text-muted-foreground">Total Paid</span>
-                                            <span className="text-sm font-bold text-foreground">{formatPrice(totalPaid)}</span>
-                                        </div>
-                                        <div className="flex items-center justify-between mb-2">
-                                            <span className="text-sm text-muted-foreground">Remaining</span>
-                                            {isFullyRefunded ? (
-                                                <Badge variant="payment_refunded" className="text-xs font-bold">Fully Refunded</Badge>
-                                            ) : remainingBalance > 0 ? (
-                                                <Badge variant="destructive" className="text-xs font-bold">
-                                                    {formatPrice(remainingBalance)}
-                                                </Badge>
-                                            ) : (
-                                                <span className="text-sm font-bold text-emerald-600">
-                                                    {formatPrice(remainingBalance)}
-                                                </span>
-                                            )}
-                                        </div>
-                                        <div className="mb-3">
-                                            <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
-                                                <div
-                                                    className={`h-full rounded-full transition-all ${paymentPercent >= 100 ? 'bg-emerald-500' : 'bg-primary'}`}
-                                                    style={{ width: `${paymentPercent}%` }}
-                                                />
-                                            </div>
-                                            <p className="text-[10px] text-muted-foreground mt-1">{paymentPercent}% paid</p>
-                                        </div>
-                                        {booking.payments && booking.payments.length > 0 && (
-                                            <div className="space-y-1.5 max-h-28 overflow-y-auto">
-                                                {sortPaymentsNewest(booking.payments).slice(0, 3).map(p => (
-                                                    <PaymentItem
-                                                        key={p.id}
-                                                        payment={p}
-                                                        onEdit={remainingBalance > 0 || (p.type === 'refund' && !isFullyRefunded) ? () => openEditPayment(p) : undefined}
+                                    </CardHeader>
+                                    <CardContent className="p-4">
+                                        <div className="flex flex-col sm:flex-row gap-4">
+                                            <div className="relative h-40 sm:h-auto sm:w-44 lg:w-56 shrink-0 rounded-xl bg-muted overflow-hidden sm:self-stretch group">
+                                                {booking.car.image_path && !carImageError ? (
+                                                    <img
+                                                        src={carImageSrc ?? ''}
+                                                        alt={`${booking.car.brand} ${booking.car.model}`}
+                                                        loading="lazy"
+                                                        onError={() => setCarImageError(true)}
+                                                        className="absolute inset-0 w-full h-full object-cover"
                                                     />
-                                                ))}
-                                                {booking.payments.length > 3 && (
-                                                    <p className="text-[10px] text-muted-foreground">+{booking.payments.length - 3} more</p>
+                                                ) : (
+                                                    <div className={`w-full h-full ${carColorClass(booking.car.color)} flex items-center justify-center`}>
+                                                        <Car className="w-10 h-10 text-white/30" />
+                                                    </div>
+                                                )}
+                                                {carImageSrc && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setZoomImage(carImageSrc)}
+                                                        className="absolute inset-0 flex items-center justify-center bg-black/0 hover:bg-black/10 transition-colors cursor-zoom-in"
+                                                        aria-label="Zoom vehicle image"
+                                                        title="Click to zoom"
+                                                    >
+                                                        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <ZoomIn className="w-4 h-4" />
+                                                        </span>
+                                                    </button>
                                                 )}
                                             </div>
-                                        )}
-                                    </CardContent>
-
-                                    <Separator />
-
-                                    {/* Quick Actions */}
-                                    <CardContent className="p-5 space-y-2">
-                                        <RecordPaymentSheet
-                                            booking={booking}
-                                            open={showPaymentSheet}
-                                            onOpenChange={setShowPaymentSheet}
-                                            onEditPayment={p => openEditPayment(p, true)}
-                                        />
-
-                                        {booking.status === 'confirmed' && (
-                                            <Link href={route('admin.bookings.checkout', booking.id)} className="block">
-                                                <Button variant="default" className="w-full">
-                                                    <Car className="w-4 h-4 mr-1.5" />
-                                                    Check-out Vehicle
-                                                </Button>
-                                            </Link>
-                                        )}
-
-                                        {booking.status === 'active' && (
-                                            <CheckinVehicleSheet booking={booking} extraCharges={extraCharges} />
-                                        )}
-
-                                        {['completed', 'cancelled'].includes(booking.status) ? (
-                                            <Button variant="outline" className="w-full" disabled>
-                                                <BadgeCheck className="w-4 h-4 mr-1.5" />
-                                                Update Status
-                                            </Button>
-                                        ) : (
-                                        <Popover open={statusOpen} onOpenChange={handleStatusOpenChange}>
-                                            <PopoverTrigger asChild>
-                                                <Button variant="outline" className="w-full">
-                                                    <BadgeCheck className="w-4 h-4 mr-1.5" />
-                                                    Update Status
-                                                </Button>
-                                            </PopoverTrigger>
-                                            <PopoverContent align="end" className="w-[320px] p-4" sideOffset={8}>
-                                                <div className="space-y-3">
-                                                    <div>
-                                                        <p className="text-sm font-semibold text-foreground">Update Status</p>
-                                                        <p className="text-xs text-muted-foreground">
-                                                            Current: {statusOptions().find(o => o.value === booking.status)?.label ?? booking.status}
-                                                        </p>
+                                            <div className="flex-1 min-w-0 space-y-3">
+                                                <div className="min-w-0">
+                                                    <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                                                        <Badge variant="outline" className="text-[10px] h-5">{booking.car.year}</Badge>
+                                                        {booking.car.color && (
+                                                            <Badge variant="outline" className="text-[10px] h-5 capitalize">
+                                                                <span className={`w-1.5 h-1.5 rounded-full mr-1 ${carColorClass(booking.car.color)}`} />
+                                                                {booking.car.color}
+                                                            </Badge>
+                                                        )}
                                                     </div>
-                                                    <form onSubmit={updateStatus} className="space-y-3">
-                                                        <div>
-                                                            <Label className="text-xs font-medium">New Status</Label>
-                                                            <Select
-                                                                value={form.data.status}
-                                                                onValueChange={v => {
-                                                                    form.setData('status', v);
-                                                                    if (v !== 'cancelled') setConfirmCancel(false);
-                                                                }}
-                                                            >
-                                                                <SelectTrigger className="mt-1">
-                                                                    <SelectValue />
-                                                                </SelectTrigger>
-                                                                <SelectContent>
-                                                                    {popoverStatusOptions.map(o => (
-                                                                        <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                                                                    ))}
-                                                                </SelectContent>
-                                                            </Select>
-                                                        </div>
-
-                                                        <p className="text-[11px] text-muted-foreground">
-                                                            Check-out and check-in are handled from the vehicle handover buttons.
-                                                        </p>
-
-                                                        {booking.status === 'pending' && form.data.status === 'confirmed' && (
-                                                            <div>
-                                                                <Label className="text-xs font-medium">
-                                                                    Downpayment <span className="text-destructive">*</span>
-                                                                </Label>
-                                                                <div className="relative mt-1">
-                                                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                                                        <span className="text-muted-foreground text-sm">$</span>
-                                                                    </div>
-                                                                    <Input
-                                                                        type="number"
-                                                                        step="0.01"
-                                                                        min="0.01"
-                                                                        max={booking.total_amount}
-                                                                        value={form.data.downpayment_amount}
-                                                                        onChange={e => form.setData('downpayment_amount', e.target.value)}
-                                                                        placeholder="0.00"
-                                                                        className="pl-7 h-8 text-sm"
-                                                                    />
-                                                                </div>
-                                                            </div>
-                                                        )}
-
-                                                        {form.data.status === 'cancelled' && confirmCancel && (
-                                                            <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 space-y-2">
-                                                                <p className="text-xs font-semibold text-destructive">Cancel this booking?</p>
-                                                                <p className="text-[11px] text-muted-foreground leading-relaxed">
-                                                                    The booking will be permanently cancelled. Any refunds or adjustments must be handled separately.
-                                                                </p>
-                                                                <div className="flex gap-2 pt-1">
-                                                                    <Button
-                                                                        type="button"
-                                                                        variant="ghost"
-                                                                        size="sm"
-                                                                        className="flex-1 h-8 text-xs"
-                                                                        onClick={() => setConfirmCancel(false)}
-                                                                    >
-                                                                        Go back
-                                                                    </Button>
-                                                                    <Button
-                                                                        type="submit"
-                                                                        variant="destructive"
-                                                                        size="sm"
-                                                                        className="flex-1 h-8 text-xs"
-                                                                        disabled={form.processing}
-                                                                    >
-                                                                        Confirm cancellation
-                                                                    </Button>
-                                                                </div>
-                                                            </div>
-                                                        )}
-
-                                                        {!confirmCancel && (
-                                                            <div className="flex gap-2 pt-1">
-                                                                <Button
-                                                                    type="button"
-                                                                    variant="outline"
-                                                                    size="sm"
-                                                                    className="flex-1 h-8 text-xs"
-                                                                    onClick={() => handleStatusOpenChange(false)}
-                                                                >
-                                                                    Cancel
-                                                                </Button>
-                                                                <Button
-                                                                    type="submit"
-                                                                    size="sm"
-                                                                    className="flex-1 h-8 text-xs"
-                                                                    disabled={form.processing}
-                                                                >
-                                                                    {form.processing ? 'Saving...' : 'Update'}
-                                                                </Button>
-                                                            </div>
-                                                        )}
-                                                    </form>
+                                                    <h3 className="text-lg font-bold text-foreground leading-tight">
+                                                        {booking.car.brand} <span className="font-normal text-muted-foreground">{booking.car.model}</span>
+                                                    </h3>
+                                                    <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-muted mt-1.5">
+                                                        <Hash className="w-3 h-3 text-muted-foreground" />
+                                                        <span className="text-xs font-mono text-muted-foreground">{booking.car.license_plate}</span>
+                                                    </div>
                                                 </div>
-                                            </PopoverContent>
-                                        </Popover>
-                                        )}
 
-                                        {['pending', 'confirmed'].includes(booking.status) && (
-                                            <Link
-                                                href={route('admin.bookings.edit', booking.id)}
-                                                className="block"
-                                            >
-                                                <Button variant="ghost" className="w-full">
-                                                    <PenLine className="w-4 h-4 mr-1.5" />
-                                                    Modify Booking
-                                                </Button>
-                                            </Link>
-                                        )}
-
-                                        <Link href={route('admin.bookings.invoice', booking.id)} className="block">
-                                            <Button variant="outline" className="w-full">
-                                                <Printer className="w-4 h-4 mr-1.5" />
-                                                View Invoice
-                                            </Button>
-                                        </Link>
-
-                                    </CardContent>
-
-                                    {/* Edit Payment Sheet */}
-                                    <EditPaymentSheet
-                                        booking={booking}
-                                        editingPayment={editingPayment}
-                                        onOpenChange={open => {
-                                            if (!open) setEditingPayment(null);
-                                        }}
-                                    />
-                                </Card>
-                            </div>
-                        </div>
-
-                        {/* Main Content */}
-                        <div className="flex-1 min-w-0 space-y-4">
-                            {/* Vehicle Section */}
-                            {booking.car ? (
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                                {/* Left — Hero Card */}
-                                <Card className="overflow-hidden h-full">
-                                    <div className="relative h-44 sm:h-52 bg-muted">
-                                        {booking.car.image_path && !carImageError ? (
-                                            <img
-                                                src={`/storage/${booking.car.image_path}`}
-                                                alt={`${booking.car.brand} ${booking.car.model}`}
-                                                loading="lazy"
-                                                onError={() => setCarImageError(true)}
-                                                className="w-full h-full object-contain p-4"
-                                            />
-                                        ) : (
-                                            <div className={`w-full h-full ${carColorClass(booking.car.color)} flex items-center justify-center`}>
-                                                <Car className="w-12 h-12 text-white/30" />
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div className="p-4 space-y-3">
-                                        <div className="flex items-start justify-between gap-2">
-                                            <div className="min-w-0">
-                                                <div className="flex items-center gap-1.5 flex-wrap mb-1">
-                                                    <Badge variant="outline" className="text-[10px] h-5">{booking.car.year}</Badge>
-                                                    {booking.car.color && (
-                                                        <Badge variant="outline" className="text-[10px] h-5 capitalize">
-                                                            <span className={`w-1.5 h-1.5 rounded-full mr-1 ${carColorClass(booking.car.color)}`} />
-                                                            {booking.car.color}
-                                                        </Badge>
-                                                    )}
-                                                </div>
-                                                <h3 className="text-lg font-bold text-foreground leading-tight">
-                                                    {booking.car.brand} <span className="font-normal text-muted-foreground">{booking.car.model}</span>
-                                                </h3>
-                                                <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-muted mt-1.5">
-                                                    <Hash className="w-3 h-3 text-muted-foreground" />
-                                                    <span className="text-xs font-mono text-muted-foreground">{booking.car.license_plate}</span>
-                                                </div>
-                                            </div>
-                                            <div className="text-right shrink-0">
-                                                <p className="text-xs text-muted-foreground">Daily Rate</p>
-                                                <p className="text-2xl font-bold text-foreground">{formatPrice(booking.car.daily_rate)}</p>
-                                                <p className="text-xs text-muted-foreground">per day</p>
-                                            </div>
-                                        </div>
-                                        {booking.car.description && (
-                                            <div className="pt-2 border-t">
-                                                <p className="text-sm text-muted-foreground leading-relaxed italic">
-                                                    &ldquo;{booking.car.description}&rdquo;
+                                        <div className="flex items-end justify-between gap-3 rounded-xl border border-border bg-muted/20 p-3">
+                                            <div>
+                                                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Daily Rate</p>
+                                                <p className="text-lg font-bold text-foreground">
+                                                    {formatPrice(booking.car.daily_rate)}
+                                                    <span className="text-xs font-medium text-muted-foreground">/day</span>
                                                 </p>
                                             </div>
-                                        )}
-                                    </div>
-                                </Card>
+                                            <div className="text-right">
+                                                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">This Rental</p>
+                                                <p className="text-lg font-bold text-foreground">{formatPrice(booking.car.daily_rate * days)}</p>
+                                                <p className="text-[10px] text-muted-foreground">{formatPrice(booking.car.daily_rate)} × {days} day{days !== 1 ? 's' : ''}</p>
+                                            </div>
+                                        </div>
 
-                                {/* Right — Specs Card */}
-                                <Card className="p-4 h-full">
-                                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">Specifications</p>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        {[
-                                            { icon: Gauge, label: 'Transmission', value: booking.car.transmission, color: 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30' },
-                                            { icon: Fuel, label: 'Fuel Type', value: booking.car.fuel_type, color: 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30' },
-                                            { icon: Users, label: 'Seats', value: booking.car.seats ? `${booking.car.seats}` : null, color: 'text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/30' },
-                                            { icon: Luggage, label: 'Baggage', value: booking.car.baggage_capacity !== null ? `${booking.car.baggage_capacity} bags` : null, color: 'text-cyan-600 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-900/30' },
-                                            { icon: Car, label: 'Doors', value: booking.car.vehicle_doors ? `${booking.car.vehicle_doors}` : null, color: 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30' },
-                                            { icon: Wind, label: 'A/C', value: booking.car.air_conditioned ? 'Climate Control' : 'Not Available', color: booking.car.air_conditioned ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30' : 'text-muted-foreground bg-muted' },
-                                            { icon: Gauge, label: 'Engine', value: booking.car.engine, color: 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/30' },
-                                            { icon: Search, label: 'VIN', value: booking.car.vin, color: 'text-muted-foreground bg-muted' },
-                                        ].map((spec, i) => {
-                                            const hasValue = spec.value !== null && spec.value !== undefined;
+                                        {(() => {
+                                            const primarySpecs = [
+                                                { icon: Gauge, label: 'Transmission', value: booking.car.transmission, color: 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30' },
+                                                { icon: Fuel, label: 'Fuel Type', value: booking.car.fuel_type, color: 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/30' },
+                                                { icon: Users, label: 'Seats', value: booking.car.seats ? `${booking.car.seats}` : null, color: 'text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/30' },
+                                                { icon: Wind, label: 'A/C', value: booking.car.air_conditioned ? 'Climate Control' : 'Not Available', color: booking.car.air_conditioned ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30' : 'text-muted-foreground bg-muted' },
+                                            ];
+                                            const moreSpecs = [
+                                                { icon: Luggage, label: 'Baggage', value: booking.car.baggage_capacity !== null ? `${booking.car.baggage_capacity} bags` : null, color: 'text-cyan-600 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-900/30' },
+                                                { icon: Car, label: 'Doors', value: booking.car.vehicle_doors ? `${booking.car.vehicle_doors}` : null, color: 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30' },
+                                                { icon: Gauge, label: 'Engine', value: booking.car.engine, color: 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/30' },
+                                                { icon: Search, label: 'VIN', value: booking.car.vin, color: 'text-muted-foreground bg-muted' },
+                                            ];
                                             return (
-                                                <div key={i} className="flex items-center gap-2.5 p-2.5 rounded-lg bg-muted/30 border">
-                                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${spec.color}`}>
-                                                        <spec.icon className="w-4 h-4" />
+                                                <div>
+                                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                                        {primarySpecs.map(spec => <SpecChip key={spec.label} spec={spec} />)}
                                                     </div>
-                                                    <div className="min-w-0">
-                                                        <p className="text-[10px] font-medium text-muted-foreground">{spec.label}</p>
-                                                        <p className={`text-xs font-semibold font-mono truncate ${hasValue ? 'text-foreground' : 'text-muted-foreground/40'}`}>
-                                                            {hasValue ? spec.value : '—'}
-                                                        </p>
-                                                    </div>
+                                                    {showMoreSpecs && (
+                                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">
+                                                            {moreSpecs.map(spec => <SpecChip key={spec.label} spec={spec} />)}
+                                                        </div>
+                                                    )}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setShowMoreSpecs(s => !s)}
+                                                        className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-primary hover:underline"
+                                                    >
+                                                        <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showMoreSpecs ? 'rotate-180' : ''}`} />
+                                                        {showMoreSpecs ? 'Less specs' : `More specs (${moreSpecs.length})`}
+                                                    </button>
                                                 </div>
                                             );
-                                        })}
-                                    </div>
-                                </Card>
-                            </div>
-                            ) : (
-                            <Card className="p-4">
-                                <p className="text-sm text-muted-foreground">Vehicle details unavailable.</p>
-                            </Card>
-                            )}
+                                        })()}
 
-                            {/* Period Section */}
-                            <Card>
-                                <CardHeader>
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary shrink-0">
-                                            <Calendar className="w-5 h-5" />
+                                        {booking.car.description && (
+                                            <p className="text-sm text-muted-foreground leading-relaxed italic pt-2 border-t">
+                                                &ldquo;{booking.car.description}&rdquo;
+                                            </p>
+                                        )}
+                                            </div>
                                         </div>
-                                        <div>
-                                            <CardTitle>Booking Period</CardTitle>
-                                            <CardDescription>{days} day{days !== 1 ? 's' : ''}</CardDescription>
+                                    </CardContent>
+                                </Card>
+                                ) : (
+                                <Card className="p-4">
+                                    <p className="text-sm text-muted-foreground">Vehicle details unavailable.</p>
+                                </Card>
+                                )}
+
+                            </div>
+
+                            {/* Payments tile */}
+                            <Card>
+                                <CardContent className="p-4 space-y-3">
+                                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                                        <Banknote className="w-3.5 h-3.5" />
+                                        Payments
+                                    </p>
+                                    <div className="flex items-center justify-between text-sm">
+                                        <span className="text-muted-foreground">Total Paid</span>
+                                        <span className="text-sm font-bold text-foreground">{formatPrice(totalPaid)}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between text-sm">
+                                        <span className="text-muted-foreground">Remaining</span>
+                                        {isFullyRefunded ? (
+                                            <Badge variant="payment_refunded" className="text-xs font-bold">Fully Refunded</Badge>
+                                        ) : remainingBalance > 0 ? (
+                                            <Badge variant="destructive" className="text-xs font-bold">{formatPrice(remainingBalance)}</Badge>
+                                        ) : (
+                                            <span className="text-sm font-bold text-emerald-600">{formatPrice(remainingBalance)}</span>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                                            <div
+                                                className={`h-full rounded-full transition-all ${paymentPercent >= 100 ? 'bg-emerald-500' : 'bg-primary'}`}
+                                                style={{ width: `${paymentPercent}%` }}
+                                            />
+                                        </div>
+                                        <p className="text-[10px] text-muted-foreground mt-1">{paymentPercent}% paid</p>
+                                    </div>
+                                    <div className="border-t border-border pt-2 space-y-1.5">
+                                        {hasSwaps && rentalSegments ? (
+                                            <div className="space-y-1">
+                                                <div className="flex items-center justify-between text-xs font-semibold text-foreground">
+                                                    <span className="font-normal text-muted-foreground">Rental</span>
+                                                    <span className="font-medium text-foreground">{formatPrice(rentalSubtotal)}</span>
+                                                </div>
+                                                {rentalSegments.map((seg, i) => {
+                                                    const isDelta = i > 0;
+                                                    return (
+                                                        <div key={i} className="pl-3">
+                                                            <div className="flex items-center justify-between gap-2 text-[11px]">
+                                                                <span className={`truncate ${isDelta ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
+                                                                    {isDelta && <span className="mr-1 text-[9px] font-bold uppercase tracking-wider text-accent-600">Swap</span>}
+                                                                    {seg.car ? `${seg.car.brand} ${seg.car.model}` : 'Vehicle'} &middot; {seg.days}d
+                                                                </span>
+                                                                <span className={`shrink-0 font-medium tabular-nums ${isDelta ? 'text-accent-600' : 'text-muted-foreground'}`}>
+                                                                    {isDelta && seg.subtotal >= 0 ? '+' : ''}{formatPrice(seg.subtotal)}
+                                                                </span>
+                                                            </div>
+                                                            <p className="text-[10px] text-muted-foreground/70 pl-0">
+                                                                {formatPrice(seg.daily_rate)}/day &times; {seg.days} day{seg.days !== 1 ? 's' : ''}
+                                                                {isDelta && seg.car && rentalSegments[0]?.car
+                                                                    ? ` · ${formatPrice(seg.car.daily_rate)} − ${formatPrice(rentalSegments[0].car.daily_rate)}`
+                                                                    : ''}
+                                                            </p>
+                                                        </div>
+                                                    );
+                                                })}
+                                                <p className="text-[10px] text-muted-foreground/70 pl-3">
+                                                    Original rental unchanged; only the daily-rate difference applies from the swap time onward.
+                                                </p>
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center justify-between text-xs">
+                                                <span className="text-muted-foreground">Rental &middot; {days}d</span>
+                                                <span className="font-medium text-foreground">{formatPrice(rentalSubtotal)}</span>
+                                            </div>
+                                        )}
+                                        {taxLines.length > 0 && (
+                                            <div className="space-y-1">
+                                                {taxLines.map((t, i) => (
+                                                    <div key={i} className="flex items-center justify-between gap-2 text-xs">
+                                                        <span className="text-muted-foreground truncate">{t.desc}</span>
+                                                        <span className={`shrink-0 font-medium tabular-nums ${t.amount < 0 ? 'text-emerald-600' : 'text-foreground'}`}>
+                                                            {t.amount < 0 ? '-' : '+'}{formatPrice(Math.abs(t.amount))}
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                        {handoverChargesTotal > 0 && (
+                                            <div className="flex items-center justify-between text-xs">
+                                                <span className="text-muted-foreground">Handover charges</span>
+                                                <span className="font-medium text-foreground">{formatPrice(handoverChargesTotal)}</span>
+                                            </div>
+                                        )}
+                                        {booking.coupon_usage && couponDiscount > 0 && (
+                                            <div className="flex items-center justify-between text-xs">
+                                                <span className="text-emerald-600 font-medium">Coupon ({booking.coupon_usage.code})</span>
+                                                <span className="text-emerald-600 font-medium">-{formatPrice(couponDiscount)}</span>
+                                            </div>
+                                        )}
+                                        {Math.abs(adjustments) >= 0.01 && (
+                                            <div className="flex items-center justify-between text-xs">
+                                                <span className="text-muted-foreground">Adjustments</span>
+                                                <span className={adjustments < 0 ? 'font-medium text-emerald-600' : 'font-medium text-foreground'}>
+                                                    {adjustments < 0 ? '-' : '+'}{formatPrice(Math.abs(adjustments))}
+                                                </span>
+                                            </div>
+                                        )}
+                                        <div className="flex items-center justify-between text-sm border-t border-border pt-1.5">
+                                            <span className="font-semibold text-foreground">Total</span>
+                                            <span className="text-base font-bold text-foreground">{formatPrice(totalAmount)}</span>
                                         </div>
                                     </div>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="flex items-center gap-4 sm:gap-8">
-                                        <div className="text-center">
-                                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                                                {start.toLocaleDateString('en-US', { weekday: 'short' })}
-                                            </p>
-                                            <p className="text-3xl font-bold text-foreground leading-tight mt-1">
-                                                {start.getDate()}
-                                            </p>
-                                            <p className="text-xs text-muted-foreground mt-1">
-                                                {start.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-                                            </p>
-                                            <p className="text-xs font-mono text-muted-foreground mt-1.5">
-                                                {formatTime(booking.pickup_time)}
-                                            </p>
+                                    {booking.payments && booking.payments.length > 0 && (
+                                        <div className="space-y-1.5 max-h-28 overflow-y-auto">
+                                            {sortPaymentsNewest(booking.payments).slice(0, 3).map(p => (
+                                                <PaymentItem
+                                                    key={p.id}
+                                                    payment={p}
+                                                    onEdit={remainingBalance > 0 || (p.type === 'refund' && !isFullyRefunded) ? () => openEditPayment(p) : undefined}
+                                                />
+                                            ))}
+                                            {booking.payments.length > 3 && (
+                                                <p className="text-[10px] text-muted-foreground">+{booking.payments.length - 3} more</p>
+                                            )}
                                         </div>
-                                        <div className="flex-1 flex items-center">
-                                            <div className="h-px flex-1 bg-border" />
-                                            <div className="flex flex-col items-center mx-2">
-                                                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                                                    <ChevronRight className="w-5 h-5" />
-                                                </div>
-                                                <span className="text-[10px] font-medium text-muted-foreground mt-1">{days} day{days !== 1 ? 's' : ''}</span>
-                                            </div>
-                                            <div className="h-px flex-1 bg-border" />
+                                    )}
+                                </CardContent>
+                            </Card>
+
+                            {/* Activity timeline — under payments when no extensions */}
+                            {!hasExtension && activityTimeline}
+
+                            {/* Period tile */}
+                            <Card>
+                                <CardContent className="p-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Pickup</p>
+                                            <p className="text-sm font-bold text-foreground">{start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</p>
+                                            <p className="text-xs text-muted-foreground">{formatTime(booking.pickup_time)}</p>
+                                            {booking.pickup_location?.location && (
+                                                <p className="mt-1 text-[11px] font-medium text-primary flex items-center gap-1 truncate" title={booking.pickup_location.location}>
+                                                    <MapPin className="w-3 h-3 shrink-0" />
+                                                    {booking.pickup_location.location}
+                                                </p>
+                                            )}
+                                            {booking.pickup_handover?.captured_at && (
+                                                <span className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                                                    <CheckCircle2 className="w-3 h-3" />
+                                                    Checked out {formatHandoverTime(booking.pickup_handover.captured_at)}
+                                                </span>
+                                            )}
                                         </div>
-                                        <div className="text-center">
-                                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                                                {end.toLocaleDateString('en-US', { weekday: 'short' })}
-                                            </p>
-                                            <p className="text-3xl font-bold text-foreground leading-tight mt-1">
-                                                {end.getDate()}
-                                            </p>
-                                            <p className="text-xs text-muted-foreground mt-1">
-                                                {end.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-                                            </p>
-                                            <p className="text-xs font-mono text-muted-foreground mt-1.5">
-                                                {formatTime(booking.return_time)}
-                                            </p>
+                                        <div className="flex flex-col items-center shrink-0 px-2">
+                                            <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                                            <span className="text-[10px] font-bold text-muted-foreground">{days}d</span>
+                                        </div>
+                                        <div className="flex-1 min-w-0 text-right">
+                                            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Return</p>
+                                            <p className="text-sm font-bold text-foreground">{end.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</p>
+                                            <p className="text-xs text-muted-foreground">{formatTime(booking.return_time)}</p>
+                                            {booking.return_location?.location && (
+                                                <p className="mt-1 text-[11px] font-medium text-primary flex items-center justify-end gap-1 truncate" title={booking.return_location.location}>
+                                                    <MapPin className="w-3 h-3 shrink-0" />
+                                                    {booking.return_location.location}
+                                                </p>
+                                            )}
+                                            {booking.return_handover?.captured_at && (
+                                                <span className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                                                    <CheckCircle2 className="w-3 h-3" />
+                                                    Checked in {formatHandoverTime(booking.return_handover.captured_at)}
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
                                 </CardContent>
                             </Card>
 
+                            {/* Customer tile */}
+                            <Card>
+                                <CardContent className="p-4 space-y-3">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-bold text-sm shrink-0">
+                                            {initials}
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                            <p className="font-semibold text-foreground truncate">{customerName}</p>
+                                            <Badge variant="outline" className="text-[10px] h-5 px-1.5 mt-0.5">
+                                                {booking.user ? 'Registered' : 'Guest'}
+                                            </Badge>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <div className="flex items-center gap-2 text-sm text-muted-foreground min-w-0">
+                                            <Mail className="w-3.5 h-3.5 shrink-0" />
+                                            <a href={`mailto:${customerEmail}`} className="truncate hover:text-foreground transition-colors">{customerEmail}</a>
+                                        </div>
+                                        {customerPhone && (
+                                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                                <Phone className="w-3.5 h-3.5 shrink-0" />
+                                                <a href={`tel:${customerPhone}`} className="hover:text-foreground transition-colors">{customerPhone}</a>
+                                            </div>
+                                        )}
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            {/* Related tile */}
+                            {(extensionSource || extensionChildren.length > 0) && (
+                                <Card>
+                                    <CardContent className="p-4 space-y-2">
+                                        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                                            <ArrowRightLeft className="w-3.5 h-3.5" />
+                                            Related Reservations
+                                        </p>
+                                        {extensionSource && (
+                                            <Link href={route('admin.bookings.show', extensionSource.id)} className="flex items-center gap-2 rounded-lg border border-surface-200 dark:border-surface-700 px-3 py-2 hover:border-primary/40 hover:bg-primary/5 transition-colors">
+                                                <span className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-muted-foreground">From</span>
+                                                <span className="min-w-0 flex-1">
+                                                    <span className="block text-xs font-bold text-foreground truncate">#{extensionSource.reference_code}</span>
+                                                    <span className="block text-[10px] text-muted-foreground truncate">{extensionSource.car?.brand} {extensionSource.car?.model}</span>
+                                                </span>
+                                                <span className={`h-2 w-2 shrink-0 rounded-full ${statusDotClass(extensionSource.status)}`} />
+                                            </Link>
+                                        )}
+                                        {extensionChildren.map(child => (
+                                            <Link key={child.id} href={route('admin.bookings.show', child.id)} className="flex items-center gap-2 rounded-lg border border-surface-200 dark:border-surface-700 px-3 py-2 hover:border-primary/40 hover:bg-primary/5 transition-colors">
+                                                <span className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-muted-foreground">To</span>
+                                                <span className="min-w-0 flex-1">
+                                                    <span className="block text-xs font-bold text-foreground truncate">#{child.reference_code}</span>
+                                                    <span className="block text-[10px] text-muted-foreground truncate">{child.car?.brand} {child.car?.model}{child.car?.license_plate ? ` · ${child.car.license_plate}` : ''}</span>
+                                                </span>
+                                                <span className={`h-2 w-2 shrink-0 rounded-full ${statusDotClass(child.status)}`} />
+                                            </Link>
+                                        ))}
+                                    </CardContent>
+                                </Card>
+                            )}
+
+                            {/* Activity timeline — below extension details */}
+                            {hasExtension && activityTimeline}
+
+                            {/* Handover tile */}
+                            <div className="xl:col-span-2">
                             {/* Vehicle Handover */}
                             {(booking.pickup_handover || booking.return_handover) && (
                                 <Card>
@@ -1080,8 +1131,55 @@ export default function AdminBookingsShow({ booking, extraCharges = [] }: AdminB
                                     </CardContent>
                                 </Card>
                             )}
+                            </div>
 
-                            {/* Notes Section */}
+                            {/* Vehicle swaps history */}
+                            {(booking.swaps ?? []).length > 0 && (
+                                <div className="md:col-span-2 xl:col-span-3">
+                                    <Card>
+                                        <CardHeader className="p-4 pb-0">
+                                            <CardTitle className="text-sm flex items-center gap-2">
+                                                <ArrowRightLeft className="w-4 h-4 text-violet-500" />
+                                                Vehicle Swaps
+                                            </CardTitle>
+                                            <CardDescription>Mid-rental vehicle changes for this reservation.</CardDescription>
+                                        </CardHeader>
+                                        <CardContent className="p-4 space-y-2">
+                                            {(booking.swaps ?? []).map((swap, i) => (
+                                                <div key={swap.id} className="rounded-xl border border-surface-100 dark:border-surface-700 bg-surface-50/50 dark:bg-surface-800/30 p-3">
+                                                    <div className="flex items-center gap-2 text-sm">
+                                                        <span className="min-w-0 flex-1 font-semibold text-foreground truncate">
+                                                            {swap.from_car ? `${swap.from_car.brand} ${swap.from_car.model}` : 'Unknown'}
+                                                        </span>
+                                                        <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Swap #{i + 1}</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+                                                        <span className="shrink-0 text-muted-foreground">{swap.from_days}d</span>
+                                                        <ArrowRight className="w-3.5 h-3.5 shrink-0" />
+                                                        <span className="shrink-0 text-muted-foreground">{swap.to_days}d</span>
+                                                        <span className="min-w-0 flex-1 truncate font-medium text-foreground">
+                                                            {swap.to_car ? `${swap.to_car.brand} ${swap.to_car.model}` : 'Unknown'}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex items-center justify-between gap-2 mt-1.5 text-xs">
+                                                        <span className="text-muted-foreground">On {formatDate(swap.swap_date)}</span>
+                                                        <span className={Number(swap.price_delta) < 0 ? 'font-semibold text-emerald-600' : Number(swap.price_delta) > 0 ? 'font-semibold text-destructive' : 'font-semibold text-muted-foreground'}>
+                                                            {Number(swap.price_delta) < 0 ? '-' : Number(swap.price_delta) > 0 ? '+' : ''}{formatPrice(Math.abs(Number(swap.price_delta)))}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                            <div className="rounded-xl border border-dashed border-surface-200 dark:border-surface-700 p-3 flex items-center justify-between gap-2 text-xs">
+                                                <span className="text-muted-foreground">Current total</span>
+                                                <span className="font-bold text-foreground">{formatPrice(totalAmount)}</span>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                </div>
+                            )}
+
+                            {/* Notes tile */}
+                            <div className="xl:col-span-3">
                             {booking.notes && (
                                 <Card>
                                     <CardHeader>
@@ -1102,9 +1200,10 @@ export default function AdminBookingsShow({ booking, extraCharges = [] }: AdminB
                                     </CardContent>
                                 </Card>
                             )}
+                            </div>
 
                             {/* Footer */}
-                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pt-4 mt-4 border-t">
+                            <div className="xl:col-span-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pt-4 mt-4 border-t">
                                 <Link
                                     href={route('admin.reservations.index')}
                                     className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
@@ -1119,8 +1218,205 @@ export default function AdminBookingsShow({ booking, extraCharges = [] }: AdminB
                                 </div>
                             </div>
                         </div>
+
+                            {/* Sheets */}
+                            <RecordPaymentSheet
+                                booking={booking}
+                                open={showPaymentSheet}
+                                onOpenChange={setShowPaymentSheet}
+                                onEditPayment={p => openEditPayment(p, true)}
+                                hideTrigger
+                            />
+                            <EditPaymentSheet
+                                booking={booking}
+                                editingPayment={editingPayment}
+                                onOpenChange={open => {
+                                    if (!open) setEditingPayment(null);
+                                }}
+                            />
+
+                            {/* Floating action dock */}
+                            <div className="fixed bottom-4 left-1/2 -translate-x-1/2 sm:left-auto sm:right-6 sm:translate-x-0 z-50">
+                                <div className="flex items-center gap-1 rounded-full border border-surface-200 dark:border-surface-700 bg-white/95 dark:bg-brand-900/95 backdrop-blur-md p-1.5 shadow-2xl shadow-black/10 ring-1 ring-black/5">
+                                    {/* Primary action */}
+                                    {booking.status === 'pending' && (
+                                        <Button size="sm" className="h-8 rounded-full px-4 bg-primary text-primary-foreground shadow-md shadow-primary/25 hover:bg-primary/90 active:scale-95 transition" onClick={() => setStatusOpen(true)} title="Confirm booking & record downpayment">
+                                            <BadgeCheck className="w-4 h-4 mr-1" />
+                                            Confirm
+                                        </Button>
+                                    )}
+                                    {booking.status === 'confirmed' && (
+                                        <Link href={route('admin.bookings.checkout', booking.id)}>
+                                            <Button size="sm" className="h-8 rounded-full px-4 bg-primary text-primary-foreground shadow-md shadow-primary/25 hover:bg-primary/90 active:scale-95 transition">
+                                                <Car className="w-4 h-4 mr-1" />
+                                                Check Out
+                                            </Button>
+                                        </Link>
+                                    )}
+                                    {booking.status === 'active' && (
+                                        <CheckinVehicleSheet booking={booking} extraCharges={extraCharges} triggerClassName="h-8 rounded-full px-4 shadow-md shadow-primary/25 active:scale-95 transition" />
+                                    )}
+                                    {isClosed && (
+                                        <Link href={route('admin.bookings.invoice', booking.id)}>
+                                            <Button size="sm" variant="ghost" className="h-8 rounded-full px-4">
+                                                <Printer className="w-4 h-4 mr-1" />
+                                                Invoice
+                                            </Button>
+                                        </Link>
+                                    )}
+
+                                    {(showPayment || showStatus || hasMoreActions) && (
+                                        <Separator orientation="vertical" className="mx-0.5 h-6" />
+                                    )}
+
+                                    {/* Secondary icon actions */}
+                                    {showPayment && (
+                                        <Button variant="outline" size="icon" className="h-8 w-8 rounded-full active:scale-95 transition" onClick={() => setShowPaymentSheet(true)} title="Record payment">
+                                            <Banknote className="w-4 h-4" />
+                                        </Button>
+                                    )}
+                                    {showStatus && (
+                                        <Popover open={statusOpen} onOpenChange={handleStatusOpenChange}>
+                                            <PopoverTrigger asChild>
+                                                <Button variant="ghost" size="icon" className="relative h-8 w-8 rounded-full active:scale-95 transition" title="Update status">
+                                                    <BadgeCheck className="w-4 h-4" />
+                                                    <span className={`absolute top-0.5 right-0.5 h-2 w-2 rounded-full ring-2 ring-white dark:ring-brand-900 ${statusDotClass(booking.status)}`} />
+                                                </Button>
+                                            </PopoverTrigger>
+                                            <PopoverContent align="end" className="w-[320px] p-4" sideOffset={12}>
+                                                <div className="space-y-3">
+                                                    <div>
+                                                        <p className="text-sm font-semibold text-foreground">Update Status</p>
+                                                        <p className="text-xs text-muted-foreground">
+                                                            Current: {statusOptions().find(o => o.value === booking.status)?.label ?? booking.status}
+                                                        </p>
+                                                    </div>
+                                                    <form onSubmit={updateStatus} className="space-y-3">
+                                                        <div>
+                                                            <Label className="text-xs font-medium">New Status</Label>
+                                                            <Select
+                                                                value={form.data.status}
+                                                                onValueChange={v => {
+                                                                    form.setData('status', v);
+                                                                    if (v !== 'cancelled') setConfirmCancel(false);
+                                                                }}
+                                                            >
+                                                                <SelectTrigger className="mt-1">
+                                                                    <SelectValue />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    {popoverStatusOptions.map(o => (
+                                                                        <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                                                                    ))}
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </div>
+                                                        <p className="text-[11px] text-muted-foreground">
+                                                            Check-out and check-in are handled from the dock buttons.
+                                                        </p>
+                                                        {booking.status === 'pending' && form.data.status === 'confirmed' && (
+                                                            <div>
+                                                                <Label className="text-xs font-medium">
+                                                                    Downpayment <span className="text-destructive">*</span>
+                                                                </Label>
+                                                                <div className="relative mt-1">
+                                                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                                        <span className="text-muted-foreground text-sm">$</span>
+                                                                    </div>
+                                                                    <Input
+                                                                        type="number"
+                                                                        step="0.01"
+                                                                        min="0.01"
+                                                                        max={booking.total_amount}
+                                                                        value={form.data.downpayment_amount}
+                                                                        onChange={e => form.setData('downpayment_amount', e.target.value)}
+                                                                        placeholder="0.00"
+                                                                        className="pl-7 h-8 text-sm"
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                        {form.data.status === 'cancelled' && confirmCancel && (
+                                                            <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 space-y-2">
+                                                                <p className="text-xs font-semibold text-destructive">Cancel this booking?</p>
+                                                                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                                                                    The booking will be permanently cancelled. Any refunds or adjustments must be handled separately.
+                                                                </p>
+                                                                <div className="flex gap-2 pt-1">
+                                                                    <Button type="button" variant="ghost" size="sm" className="flex-1 h-8 text-xs" onClick={() => setConfirmCancel(false)}>Go back</Button>
+                                                                    <Button type="submit" variant="destructive" size="sm" className="flex-1 h-8 text-xs" disabled={form.processing}>Confirm cancellation</Button>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                        {!confirmCancel && (
+                                                            <div className="flex gap-2 pt-1">
+                                                                <Button type="button" variant="outline" size="sm" className="flex-1 h-8 text-xs" onClick={() => handleStatusOpenChange(false)}>Cancel</Button>
+                                                                <Button type="submit" size="sm" className="flex-1 h-8 text-xs" disabled={form.processing}>{form.processing ? 'Saving...' : 'Update'}</Button>
+                                                            </div>
+                                                        )}
+                                                    </form>
+                                                </div>
+                                            </PopoverContent>
+                                        </Popover>
+                                    )}
+
+                                    {/* Overflow menu */}
+                                    {hasMoreActions && (
+                                        <Popover>
+                                            <PopoverTrigger asChild>
+                                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full active:scale-95 transition" title="More actions">
+                                                    <EllipsisVertical className="w-4 h-4" />
+                                                </Button>
+                                            </PopoverTrigger>
+                                            <PopoverContent align="end" className="w-52 p-1.5" sideOffset={12}>
+                                                <div className="flex flex-col gap-0.5">
+                                                    {canModify && (
+                                                        <Link href={route('admin.bookings.edit', booking.id)}>
+                                                            <Button variant="ghost" className="w-full justify-start h-9 text-sm rounded-lg">
+                                                                <PenLine className="w-4 h-4 mr-2" />
+                                                                Modify booking
+                                                            </Button>
+                                                        </Link>
+                                                    )}
+                                                    {canExtend && (
+                                                        <Link href={route('admin.bookings.extend.page', booking.id)}>
+                                                            <Button variant="ghost" className="w-full justify-start h-9 text-sm rounded-lg">
+                                                                <CalendarPlus className="w-4 h-4 mr-2" />
+                                                                Extend rental
+                                                            </Button>
+                                                        </Link>
+                                                    )}
+                                                    {canExtend && (
+                                                        <Link href={route('admin.bookings.swap.page', booking.id)}>
+                                                            <Button variant="ghost" className="w-full justify-start h-9 text-sm rounded-lg">
+                                                                <ArrowRightLeft className="w-4 h-4 mr-2" />
+                                                                Swap vehicle
+                                                            </Button>
+                                                        </Link>
+                                                    )}
+                                                    {!isClosed && <Separator className="my-1" />}
+                                                    {!isClosed && (
+                                                        <Link href={route('admin.bookings.invoice', booking.id)}>
+                                                            <Button variant="ghost" className="w-full justify-start h-9 text-sm rounded-lg">
+                                                                <Printer className="w-4 h-4 mr-2" />
+                                                                View invoice
+                                                            </Button>
+                                                        </Link>
+                                                    )}
+                                                </div>
+                                            </PopoverContent>
+                                        </Popover>
+                                    )}
+                                </div>
+                            </div>
+                            {/* Image lightbox */}
+                            <ImageLightbox
+                                src={zoomImage ?? ''}
+                                alt={`${booking.car?.brand ?? ''} ${booking.car?.model ?? ''}`.trim() || 'Vehicle image'}
+                                open={!!zoomImage}
+                                onClose={() => setZoomImage(null)}
+                            />
                     </div>
-                </div>
             </AuthenticatedLayout>
         </>
     );

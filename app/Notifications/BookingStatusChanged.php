@@ -47,6 +47,7 @@ class BookingStatusChanged extends Notification implements ShouldBroadcast
             'reference_code' => $this->booking->reference_code,
             'old_status' => $this->oldStatus,
             'new_status' => $this->newStatus,
+            'creator_id' => auth()->id(),
         ];
     }
 

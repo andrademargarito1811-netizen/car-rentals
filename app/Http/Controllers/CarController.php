@@ -20,6 +20,33 @@ class CarController extends Controller
         $cars = Car::available()
             ->with('vehicleClass')
             ->withReviewStats()
+            ->orderBy('brand')
+            ->orderBy('model')
+            ->get()
+            ->map(function ($car) {
+                return [
+                    'id' => $car->id,
+                    'name' => $car->brand.' '.$car->model,
+                    'brand' => $car->brand,
+                    'model' => $car->model,
+                    'year' => $car->year,
+                    'category' => $car->vehicle_type ?? 'Standard',
+                    'seats' => $car->seats,
+                    'transmission' => $car->transmission,
+                    'daily_rate' => (float) $car->daily_rate,
+                    'image_path' => $car->image_path,
+                    'avg_rating' => round((float) $car->avg_rating, 1),
+                    'ratings_count' => (int) $car->ratings_count,
+                ];
+            });
+
+        $popularCars = Car::available()
+            ->with('vehicleClass')
+            ->withReviewStats()
+            ->withCount('bookings')
+            ->orderByDesc('bookings_count')
+            ->orderBy('brand')
+            ->orderBy('model')
             ->limit(8)
             ->get()
             ->map(function ($car) {
@@ -58,6 +85,7 @@ class CarController extends Controller
 
         return Inertia::render('Cars/Index', [
             'cars' => $cars,
+            'popularCars' => $popularCars,
             'totalCars' => $totalCars,
             'locations' => $locations,
             'whyChooseUsItems' => $whyChooseUsItems,

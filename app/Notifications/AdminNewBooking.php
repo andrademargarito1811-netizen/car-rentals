@@ -41,6 +41,7 @@ class AdminNewBooking extends Notification implements ShouldBroadcast
             'icon' => 'car',
             'action_url' => route('admin.bookings.show', $this->booking->id),
             'reference_code' => $this->booking->reference_code,
+            'creator_id' => auth()->id(),
         ];
     }
 

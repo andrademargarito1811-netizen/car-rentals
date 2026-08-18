@@ -463,11 +463,11 @@ export default function QuickBookingPanel({ open, onClose, selectedCarIds, selec
                 return;
             }
             setShowSuccess(true);
+            router.reload({ only: ['cars'] });
             setTimeout(() => {
                 setShowSuccess(false);
                 onClose();
             }, 4000);
-            setTimeout(() => window.location.reload(), 4200);
         } catch (e) {
             console.error('Booking submission error:', e);
             alert('An unexpected error occurred. Please try again.');

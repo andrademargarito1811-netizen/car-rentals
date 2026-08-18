@@ -13,8 +13,27 @@ interface GuestShowProps {
         pickup_time: string | null;
         return_time: string | null;
         total_amount: number;
+        total_paid: number;
         status: string;
         notes: string | null;
+        extension_source: {
+            id: number;
+            reference_code: string | null;
+            start_date: string;
+            end_date: string;
+            status: string;
+            total_amount: number;
+            car: { brand: string; model: string; license_plate: string } | null;
+        } | null;
+        extension_children: Array<{
+            id: number;
+            reference_code: string | null;
+            start_date: string;
+            end_date: string;
+            status: string;
+            total_amount: number;
+            car: { brand: string; model: string; license_plate: string } | null;
+        }>;
         car: {
             id: number;
             brand: string;
@@ -58,6 +77,28 @@ interface GuestShowProps {
         return_handover: { fuel_level: number | null; odometer: number | null; notes: string | null; damages: VehicleDamage[] | null; captured_at: string | null } | null;
         extra_charges: { id: number; name: string; amount: string; tax_amount: string; operator: string }[];
         handover_charges: { fuel_refuel: number; fuel_missing: number; excess_mileage: number; excess_km: number; km_driven: number; total: number } | null;
+        swaps: Array<{
+            id: number;
+            swap_date: string;
+            swap_time: string | null;
+            from_days: number;
+            to_days: number;
+            from_subtotal: number;
+            to_subtotal: number;
+            old_total_amount: number;
+            new_total_amount: number;
+            price_delta: number;
+            from_car: { brand: string; model: string; year: number; daily_rate: number } | null;
+            to_car: { brand: string; model: string; year: number; daily_rate: number } | null;
+        }>;
+        swap_segments: Array<{
+            car: { id: number; brand: string; model: string; year: number; daily_rate: number } | null;
+            start_date: string;
+            end_date: string;
+            days: number;
+            daily_rate: number;
+            subtotal: number;
+        }>;
     };
 }
 
@@ -435,6 +476,97 @@ export default function GuestShow({ booking }: GuestShowProps) {
                                 </div>
                             </div>
 
+                            {/* Related Reservations */}
+                            {(booking.extension_source || (booking.extension_children ?? []).length > 0) && (
+                                <div className="anim-fade d7 rounded-2xl border border-surface-100/80 bg-white shadow-sm overflow-hidden">
+                                    <div className="px-5 py-4 border-b border-surface-100/60">
+                                        <h2 className="text-sm font-bold text-surface-900 flex items-center gap-2">
+                                            <svg className="w-4 h-4 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+                                            </svg>
+                                            Related Reservations
+                                        </h2>
+                                    </div>
+                                    <div className="p-5 space-y-3">
+                                        {booking.extension_source && (
+                                            <Link href={route('bookings.guest.show', booking.extension_source.reference_code!)} className="group block rounded-2xl border border-surface-100/80 bg-surface-50/50 p-4 hover:border-brand-200 hover:shadow-sm transition-all">
+                                                <p className="text-[11px] font-semibold uppercase tracking-widest text-surface-400 mb-1">Extended from reservation</p>
+                                                <p className="text-sm font-bold text-surface-900 group-hover:text-brand-700 transition-colors">#{booking.extension_source.reference_code}</p>
+                                                <p className="text-xs text-surface-500 mt-0.5">
+                                                    {booking.extension_source.car?.brand} {booking.extension_source.car?.model} · {formatDate(booking.extension_source.start_date)} — {formatDate(booking.extension_source.end_date)}
+                                                </p>
+                                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border mt-2 ${
+                                                    booking.extension_source.status === 'confirmed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                                    booking.extension_source.status === 'active' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                                                    booking.extension_source.status === 'pending' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                                                    booking.extension_source.status === 'cancelled' ? 'bg-red-50 text-red-700 border-red-200' :
+                                                    'bg-surface-100 text-surface-600 border-surface-200'
+                                                }`}>
+                                                    {booking.extension_source.status}
+                                                </span>
+                                            </Link>
+                                        )}
+                                        {booking.extension_source && (booking.extension_children ?? []).length > 0 && (
+                                            <div className="border-t border-dashed border-surface-200/60" />
+                                        )}
+                                        {(booking.extension_children ?? []).map(child => (
+                                            <Link key={child.id} href={route('bookings.guest.show', child.reference_code!)} className="group block rounded-2xl border border-surface-100/80 bg-surface-50/50 p-4 hover:border-brand-200 hover:shadow-sm transition-all">
+                                                <p className="text-[11px] font-semibold uppercase tracking-widest text-surface-400 mb-1">Extended into reservation</p>
+                                                <p className="text-sm font-bold text-surface-900 group-hover:text-brand-700 transition-colors">#{child.reference_code}</p>
+                                                <p className="text-xs text-surface-500 mt-0.5">
+                                                    {child.car?.brand} {child.car?.model} · {formatDate(child.start_date)} — {formatDate(child.end_date)}
+                                                </p>
+                                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border mt-2 ${
+                                                    child.status === 'confirmed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                                    child.status === 'active' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                                                    child.status === 'pending' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                                                    child.status === 'cancelled' ? 'bg-red-50 text-red-700 border-red-200' :
+                                                    'bg-surface-100 text-surface-600 border-surface-200'
+                                                }`}>
+                                                    {child.status}
+                                                </span>
+                                            </Link>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Vehicle Swaps History */}
+                            {(booking.swaps ?? []).length > 0 && (
+                                <div className="anim-fade d7 rounded-2xl border border-violet-100/80 bg-white shadow-sm overflow-hidden">
+                                    <div className="px-5 py-4 border-b border-violet-100/60">
+                                        <h2 className="text-sm font-bold text-surface-900 flex items-center gap-2">
+                                            <svg className="w-4 h-4 text-violet-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+                                            </svg>
+                                            Vehicle Changes
+                                        </h2>
+                                    </div>
+                                    <div className="p-5 space-y-3">
+                                        {(booking.swaps ?? []).map((swap, i) => (
+                                            <div key={swap.id} className="flex flex-col sm:flex-row sm:items-center gap-2 rounded-xl border border-violet-100/80 bg-violet-50/40 px-4 py-3">
+                                                <div className="flex items-center gap-2 min-w-0 flex-1">
+                                                    <span className="shrink-0 rounded-lg bg-white border border-violet-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-violet-600">Swap #{i + 1}</span>
+                                                    <span className="text-sm font-bold text-surface-800 truncate">
+                                                        {swap.from_car?.brand} {swap.from_car?.model}
+                                                    </span>
+                                                    <svg className="w-4 h-4 shrink-0 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 5l7 7-7 7M5 5l7 7-7 7" /></svg>
+                                                    <span className="text-sm font-bold text-surface-800 truncate">
+                                                        {swap.to_car?.brand} {swap.to_car?.model}
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center gap-3 shrink-0">
+                                                    <span className="text-xs text-surface-500">{formatDate(swap.swap_date)}</span>
+                                                    <span className={`text-xs font-bold ${Number(swap.price_delta) < 0 ? 'text-emerald-600' : Number(swap.price_delta) > 0 ? 'text-amber-600' : 'text-surface-400'}`}>
+                                                        {Number(swap.price_delta) < 0 ? '−' : Number(swap.price_delta) > 0 ? '+' : ''}{formatPrice(Math.abs(Number(swap.price_delta)))}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Price Summary */}
                             <div className="anim-fade d7 rounded-2xl border border-surface-100/80 bg-white shadow-sm overflow-hidden">
                                 <div className="px-5 py-4 border-b border-surface-100/60">
@@ -446,10 +578,21 @@ export default function GuestShow({ booking }: GuestShowProps) {
                                     </h2>
                                 </div>
                                 <div className="p-5 space-y-2.5">
-                                    <div className="flex items-center justify-between text-sm">
-                                        <span className="text-surface-400">{formatPrice(booking.car?.daily_rate ?? 0)} × {days} {days === 1 ? 'day' : 'days'}</span>
-                                        <span className="font-semibold text-surface-800">{formatPrice(subtotal)}</span>
-                                    </div>
+                                    {(booking.swap_segments?.length ?? 0) > 0 ? (
+                                        booking.swap_segments.map((seg, i) => (
+                                            <div key={i} className="flex items-center justify-between text-sm">
+                                                <span className="text-surface-400">
+                                                    {seg.car?.brand} {seg.car?.model} · {seg.days} {seg.days === 1 ? 'day' : 'days'} × {formatPrice(seg.daily_rate)}/day
+                                                </span>
+                                                <span className="font-semibold text-surface-800">{formatPrice(seg.subtotal)}</span>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className="flex items-center justify-between text-sm">
+                                            <span className="text-surface-400">{formatPrice(booking.car?.daily_rate ?? 0)} × {days} {days === 1 ? 'day' : 'days'}</span>
+                                            <span className="font-semibold text-surface-800">{formatPrice(subtotal)}</span>
+                                        </div>
+                                    )}
 
                                     {booking.booking_taxes?.filter(t => t.add_or_minus).length > 0 && (
                                         <div className="border-t border-dashed border-surface-200/60 pt-2.5 space-y-1.5">
@@ -516,6 +659,20 @@ export default function GuestShow({ booking }: GuestShowProps) {
                                         </div>
                                     )}
 
+                                    {booking.total_paid > 0 && (
+                                        <div className="flex items-center justify-between text-sm bg-green-50/80 rounded-xl px-3 py-2 -mx-1 border border-green-100/50">
+                                            <span className="font-medium text-green-700 text-xs">Amount Paid</span>
+                                            <span className="font-bold text-green-600">{formatPrice(booking.total_paid)}</span>
+                                        </div>
+                                    )}
+
+                                    {booking.total_paid > 0 && booking.total_amount - booking.total_paid > 0 && (
+                                        <div className="flex items-center justify-between text-sm">
+                                            <span className="text-surface-400">Balance Due</span>
+                                            <span className="font-semibold text-surface-800">{formatPrice(booking.total_amount - booking.total_paid)}</span>
+                                        </div>
+                                    )}
+
                                     <div className="mt-3 pt-3 border-t border-surface-200/80 flex items-center justify-between">
                                         <span className="text-sm font-bold text-surface-900">Total</span>
                                         <span className="text-xl font-extrabold text-brand-800">{formatPrice(booking.total_amount)}</span>
@@ -551,7 +708,7 @@ export default function GuestShow({ booking }: GuestShowProps) {
                                 Look Up Another Reservation
                             </span>
                         </Link>
-                        {['pending'].includes(booking.status) && (
+                        {booking.reference_code && ['pending'].includes(booking.status) && (
                             <Link
                                 href={route('bookings.guest.edit', booking.reference_code ?? '')}
                                 className="flex-1 group rounded-2xl bg-brand-800 px-6 py-3.5 text-sm font-bold text-white text-center hover:bg-brand-700 hover:shadow-lg hover:shadow-brand-200/30 transition-all duration-300 active:scale-[0.98]"
@@ -561,6 +718,32 @@ export default function GuestShow({ booking }: GuestShowProps) {
                                     <svg className="h-4 w-4 transition-transform group-hover:translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
                                     </svg>
+                                </span>
+                            </Link>
+                        )}
+                        {booking.reference_code && ['confirmed', 'active'].includes(booking.status) && (
+                            <Link
+                                href={route('bookings.guest.extend.page', booking.reference_code ?? '')}
+                                className="flex-1 group rounded-2xl bg-brand-800 px-6 py-3.5 text-sm font-bold text-white text-center hover:bg-brand-700 hover:shadow-lg hover:shadow-brand-200/30 transition-all duration-300 active:scale-[0.98]"
+                            >
+                                <span className="inline-flex items-center justify-center gap-2">
+                                    <svg className="h-4 w-4 transition-transform group-hover:translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v7m0 0h7m-7 0l3-3a7 7 0 1110 5m-2 4v-7m0 0H8m8 0l-3 3a7 7 0 11-10-5" />
+                                    </svg>
+                                    Extend Rental
+                                </span>
+                            </Link>
+                        )}
+                        {booking.reference_code && ['confirmed', 'active'].includes(booking.status) && (
+                            <Link
+                                href={route('bookings.guest.swap.page', booking.reference_code ?? '')}
+                                className="flex-1 group rounded-2xl border-2 border-brand-800/20 bg-white px-6 py-3.5 text-sm font-bold text-brand-800 text-center hover:border-brand-500 hover:bg-brand-50 hover:shadow-lg hover:shadow-brand-100/20 transition-all duration-300 active:scale-[0.98]"
+                            >
+                                <span className="inline-flex items-center justify-center gap-2">
+                                    <svg className="h-4 w-4 transition-transform group-hover:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+                                    </svg>
+                                    Swap Vehicle
                                 </span>
                             </Link>
                         )}

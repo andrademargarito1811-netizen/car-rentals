@@ -57,81 +57,9 @@ class DatabaseSeeder extends Seeder
         }
 
         try {
-            $this->call(TransferUsersFromProdSeeder::class);
+            $this->call(SnapshotReferenceDataSeeder::class);
         } catch (Throwable $e) {
-            $this->command?->warn('Skipped prod user transfer: '.$e->getMessage());
-        }
-
-        try {
-            $this->call(TransferAboutUsPageSettingsFromProdSeeder::class);
-        } catch (Throwable $e) {
-            $this->command?->warn('Skipped prod about_us_page_settings transfer: '.$e->getMessage());
-        }
-
-        try {
-            $this->call(TransferExtraChargesFromProdSeeder::class);
-        } catch (Throwable $e) {
-            $this->command?->warn('Skipped prod extra_charges transfer: '.$e->getMessage());
-        }
-
-        try {
-            $this->call(TransferFleetPageSettingsFromProdSeeder::class);
-        } catch (Throwable $e) {
-            $this->command?->warn('Skipped prod fleet_page_settings transfer: '.$e->getMessage());
-        }
-
-        try {
-            $this->call(TransferHeroImagesFromProdSeeder::class);
-        } catch (Throwable $e) {
-            $this->command?->warn('Skipped prod hero_images transfer: '.$e->getMessage());
-        }
-
-        try {
-            $this->call(TransferHeroSettingsFromProdSeeder::class);
-        } catch (Throwable $e) {
-            $this->command?->warn('Skipped prod hero_settings transfer: '.$e->getMessage());
-        }
-
-        try {
-            $this->call(TransferInvoiceSettingsFromProdSeeder::class);
-        } catch (Throwable $e) {
-            $this->command?->warn('Skipped prod invoice_settings transfer: '.$e->getMessage());
-        }
-
-        try {
-            $this->call(TransferLegalDocumentsFromProdSeeder::class);
-        } catch (Throwable $e) {
-            $this->command?->warn('Skipped prod legal_documents transfer: '.$e->getMessage());
-        }
-
-        try {
-            $this->call(TransferLocationsPageSettingsFromProdSeeder::class);
-        } catch (Throwable $e) {
-            $this->command?->warn('Skipped prod locations_page_settings transfer: '.$e->getMessage());
-        }
-
-        try {
-            $this->call(TransferReservationHeroImagesFromProdSeeder::class);
-        } catch (Throwable $e) {
-            $this->command?->warn('Skipped prod reservation_hero_images transfer: '.$e->getMessage());
-        }
-
-        try {
-            $this->call(TransferTblVehicleLocationFromProdSeeder::class);
-        } catch (Throwable $e) {
-            $this->command?->warn('Skipped prod tblvehicle_location transfer: '.$e->getMessage());
-        }
-
-        try {
-            $this->call(TransferTaxesFromProdSeeder::class);
-        } catch (Throwable $e) {
-            $this->command?->warn('Skipped prod taxes transfer: '.$e->getMessage());
-        }
-
-        try {
-            $this->call(TransferTaxVehicleClassFromProdSeeder::class);
-        } catch (Throwable $e) {
-            $this->command?->warn('Skipped prod tax_vehicle_class transfer: '.$e->getMessage());
+            $this->command?->warn('Skipped reference data snapshot: '.$e->getMessage());
         }
     }
 }

@@ -36,6 +36,7 @@ interface Conversation {
     notes_count?: number;
     has_mention?: number;
     messages?: Message[];
+    latest_message?: Message | null;
     contact_email?: string | null;
     contact_phone?: string | null;
     created_at: string;
@@ -169,6 +170,50 @@ function statusLabel(status: string): string {
     }
 }
 
+function applyMessageToConversationList(
+    list: Conversation[],
+    msg: Message,
+    extra?: { guest_name?: string | null; guest_email?: string | null },
+): Conversation[] {
+    const exists = list.some((c) => c.id === msg.conversation_id);
+
+    if (!exists) {
+        const newConv: Conversation = {
+            id: msg.conversation_id,
+            user: null,
+            guest_token: `guest-${msg.conversation_id}`,
+            guest_name: extra?.guest_name ?? null,
+            guest_email: extra?.guest_email ?? null,
+            status: 'active',
+            created_at: msg.created_at,
+            updated_at: msg.created_at,
+            unread_count: 0,
+            notes_count: msg.is_internal ? 1 : 0,
+        };
+        if (!msg.is_internal) {
+            newConv.latest_message = msg;
+        }
+        return [newConv, ...list];
+    }
+
+    return list
+        .map((c) => {
+            if (c.id !== msg.conversation_id) return c;
+            const updated: Conversation = { ...c, updated_at: msg.created_at };
+            if (extra?.guest_name || extra?.guest_email) {
+                updated.guest_name = extra.guest_name ?? c.guest_name;
+                updated.guest_email = extra.guest_email ?? c.guest_email;
+            }
+            if (msg.is_internal) {
+                updated.notes_count = (c.notes_count ?? 0) + 1;
+            } else {
+                updated.latest_message = msg;
+            }
+            return updated;
+        })
+        .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+}
+
 export default function ChatsIndex({ conversations }: ChatsIndexProps) {
     const route = useRoute();
     const headerGradient = 'from-brand-600 to-brand-800 dark:from-brand-700 dark:to-brand-900';
@@ -199,6 +244,7 @@ export default function ChatsIndex({ conversations }: ChatsIndexProps) {
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const seenIds = useRef(new Set<number>());
+    const seenSidebarIds = useRef(new Set<number>());
     const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const selectedIdRef = useRef(selectedId);
     const pulseTimers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
@@ -289,30 +335,26 @@ export default function ChatsIndex({ conversations }: ChatsIndexProps) {
         const doSubscribe = () => {
             try {
                 channel = window.Echo!.private('admin.chats');
-                channel.listen('.message.sent', (e: { id: number; conversation_id: number; body: string; sender_type: string; created_at: string; guest_name?: string | null; guest_email?: string | null }) => {
-                    setConversationsList((prev) => {
-                        const exists = prev.find((c) => c.id === e.conversation_id);
-                        if (!exists) {
-                            return [{
-                                id: e.conversation_id,
-                                user: null,
-                                guest_token: `guest-${e.conversation_id}`,
-                                guest_name: e.guest_name ?? null,
-                                guest_email: e.guest_email ?? null,
-                                status: 'active',
-                                created_at: e.created_at,
-                                updated_at: e.created_at,
-                            } as Conversation, ...prev];
-                        }
-                        if (e.guest_name || e.guest_email) {
-                            return prev.map((c) =>
-                                c.id === e.conversation_id
-                                    ? { ...c, guest_name: e.guest_name ?? c.guest_name, guest_email: e.guest_email ?? c.guest_email }
-                                    : c
-                            );
-                        }
-                        return prev;
-                    });
+                channel.listen('.message.sent', (e: { id: number; conversation_id: number; body: string; sender_id: number | null; sender_type: string; created_at: string; is_internal?: boolean; guest_name?: string | null; guest_email?: string | null }) => {
+                    if (!seenSidebarIds.current.has(e.id)) {
+                        seenSidebarIds.current.add(e.id);
+                        const msg: Message = {
+                            id: e.id,
+                            conversation_id: e.conversation_id,
+                            sender_id: e.sender_id ?? null,
+                            sender_type: e.sender_type,
+                            sender: null,
+                            body: e.body,
+                            is_internal: e.is_internal,
+                            created_at: e.created_at,
+                        };
+                        setConversationsList((prev) =>
+                            applyMessageToConversationList(prev, msg, {
+                                guest_name: e.guest_name,
+                                guest_email: e.guest_email,
+                            }),
+                        );
+                    }
 
                     if (e.conversation_id === selectedIdRef.current) return;
 
@@ -562,6 +604,11 @@ export default function ChatsIndex({ conversations }: ChatsIndexProps) {
             const data = await res.json();
             if (data.message) {
                 addMessage(data.message);
+                const sent: Message = data.message;
+                if (!seenSidebarIds.current.has(sent.id)) {
+                    seenSidebarIds.current.add(sent.id);
+                    setConversationsList((prev) => applyMessageToConversationList(prev, sent));
+                }
             }
             setBody('');
         } catch {
@@ -654,8 +701,8 @@ export default function ChatsIndex({ conversations }: ChatsIndexProps) {
     };
 
     const getLastMessage = (conv: Conversation): string | null => {
-        if (conv.messages && conv.messages.length > 0) {
-            return conv.messages[conv.messages.length - 1].body;
+        if (conv.latest_message && conv.latest_message.body) {
+            return conv.latest_message.body;
         }
         return null;
     };

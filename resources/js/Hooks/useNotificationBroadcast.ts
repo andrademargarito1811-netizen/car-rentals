@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { router } from '@inertiajs/react';
+import { router, usePage } from '@inertiajs/react';
 import { toast } from 'sonner';
 
 interface NotificationPayload {
@@ -8,10 +8,31 @@ interface NotificationPayload {
     message: string;
     icon?: string;
     action_url?: string;
+    reference_code?: string | null;
+    review_id?: number | null;
+    contact_message_id?: number | null;
+    creator_id?: number | null;
 }
+
+const DEDUPE_WINDOW_MS = 8000;
 
 export function useNotificationBroadcast() {
     const cleanupRef = useRef<(() => void) | null>(null);
+    const recentToasts = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+    const { auth } = usePage().props as { auth?: { user?: { id?: number } | null } };
+    const currentUserId = auth?.user?.id;
+
+    // A booking notification is broadcast once per recipient admin on the shared
+    // channel, so each subscriber can receive the same event multiple times.
+    // Suppress duplicate toasts for the same event within a short window.
+    const isDuplicate = (data: NotificationPayload): boolean => {
+        const id = data.reference_code ?? data.review_id ?? data.contact_message_id ?? `${data.title}:${data.message}`;
+        const key = `${data.type}:${id}`;
+        if (recentToasts.current.has(key)) return true;
+        const timer = setTimeout(() => recentToasts.current.delete(key), DEDUPE_WINDOW_MS);
+        recentToasts.current.set(key, timer);
+        return false;
+    };
 
     useEffect(() => {
         if (!window.Echo) return;
@@ -25,6 +46,23 @@ export function useNotificationBroadcast() {
                 channel.listen('.notification.received', (e: any) => {
                     const data: NotificationPayload | undefined = e as NotificationPayload;
                     if (!data?.title) return;
+
+                    // Changes made by the current admin are already confirmed by the
+                    // in-app success message, so don't also toast them about it.
+                    if (
+                        (data.type === 'booking.created' || data.type === 'booking.status_changed') &&
+                        data.creator_id != null &&
+                        data.creator_id === currentUserId
+                    ) {
+                        router.reload({ only: ['unreadNotificationCount', 'latestNotifications'] });
+                        return;
+                    }
+
+                    // Ignore the duplicate broadcast for the same booking event.
+                    if (isDuplicate(data)) {
+                        router.reload({ only: ['unreadNotificationCount', 'latestNotifications'] });
+                        return;
+                    }
 
                     const title = data.title;
                     const message = data.message ?? '';
@@ -74,6 +112,8 @@ export function useNotificationBroadcast() {
         return () => {
             if (cleanupRef.current) cleanupRef.current();
             cleanupRef.current = null;
+            for (const t of recentToasts.current.values()) clearTimeout(t);
+            recentToasts.current.clear();
         };
-    }, []);
+    }, [currentUserId]);
 }

@@ -37,6 +37,9 @@ class VehicleClassController extends Controller
     {
         $base = strtoupper(preg_replace('/[^a-zA-Z0-9]+/', '_', trim($description)));
         $base = trim($base, '_');
+        if ($base === '') {
+            $base = 'CLASS';
+        }
         $code = $base;
 
         $counter = 1;

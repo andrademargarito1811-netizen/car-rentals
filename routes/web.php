@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\BookingController;
+use App\Http\Controllers\BookingExtensionController;
+use App\Http\Controllers\BookingSwapController;
 use App\Http\Controllers\CarController;
 use App\Http\Controllers\CouponValidationController;
 use App\Http\Controllers\PageController;
@@ -50,8 +52,8 @@ Route::get('/book-now/{carId}', [PageController::class, 'bookNow'])->name('book.
 Route::get('/track-reservation', [BookingController::class, 'lookup'])->name('bookings.lookup');
 Route::post('/track-reservation', [BookingController::class, 'search'])->name('bookings.search')->middleware('throttle:10,1');
 Route::get('/reservations/{reference}', [BookingController::class, 'guestShow'])->name('bookings.guest.show')->middleware('throttle:30,1');
-Route::get('/reservations/{reference}/edit', [BookingController::class, 'editByReference'])->name('bookings.guest.edit');
-Route::patch('/reservations/{reference}/edit', [BookingController::class, 'modifyByReference'])->name('bookings.guest.modify');
+Route::get('/reservations/{reference}/edit', [BookingController::class, 'editByReference'])->name('bookings.guest.edit')->middleware('throttle:30,1');
+Route::patch('/reservations/{reference}/edit', [BookingController::class, 'modifyByReference'])->name('bookings.guest.modify')->middleware('throttle:5,1');
 
 // Coupon validation
 Route::post('/coupons/validate', [CouponValidationController::class, 'validate'])->name('coupons.validate')->middleware('throttle:10,1');
@@ -64,6 +66,16 @@ Route::post('/cars/check-availability', [CarController::class, 'checkAvailabilit
 
 // Guest reservation submission (from BookNow.tsx / Reservation.tsx)
 Route::post('/reservations', [BookingController::class, 'storeGuest'])->name('reservations.store')->middleware('throttle:10,1');
+
+// Rental extension — guest by reservation reference
+Route::get('/reservations/{reference}/extend', [BookingExtensionController::class, 'page'])->name('bookings.guest.extend.page')->middleware('throttle:60,1');
+Route::post('/reservations/{reference}/extend/quote', [BookingExtensionController::class, 'quote'])->name('bookings.guest.extend.quote')->middleware('throttle:60,1');
+Route::post('/reservations/{reference}/extend', [BookingExtensionController::class, 'submit'])->name('bookings.guest.extend.submit')->middleware('throttle:10,1');
+
+// Vehicle swap — guest by reservation reference
+Route::get('/reservations/{reference}/swap', [BookingSwapController::class, 'page'])->name('bookings.guest.swap.page')->middleware('throttle:60,1');
+Route::post('/reservations/{reference}/swap/quote', [BookingSwapController::class, 'quote'])->name('bookings.guest.swap.quote')->middleware('throttle:60,1');
+Route::post('/reservations/{reference}/swap', [BookingSwapController::class, 'submit'])->name('bookings.guest.swap.submit')->middleware('throttle:10,1');
 
 // Legal pages
 Route::get('/privacy-policy', [PageController::class, 'privacyPolicy'])->name('privacy-policy');
@@ -92,6 +104,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('/bookings/{booking}/cancel', [BookingController::class, 'cancel'])->name('bookings.cancel')->middleware('throttle:5,1');
     Route::get('/bookings/{booking}/edit', [BookingController::class, 'edit'])->name('bookings.edit');
     Route::patch('/bookings/{booking}/modify', [BookingController::class, 'modify'])->name('bookings.modify')->middleware('throttle:5,1');
+
+    // Rental extension — authenticated user
+    Route::get('/bookings/{booking}/extend', [BookingExtensionController::class, 'page'])->name('bookings.extend.page');
+    Route::post('/bookings/{booking}/extend/quote', [BookingExtensionController::class, 'quote'])->name('bookings.extend.quote')->middleware('throttle:60,1');
+    Route::post('/bookings/{booking}/extend', [BookingExtensionController::class, 'submit'])->name('bookings.extend.submit')->middleware('throttle:10,1');
+
+    // Vehicle swap — authenticated user
+    Route::get('/bookings/{booking}/swap', [BookingSwapController::class, 'page'])->name('bookings.swap.page');
+    Route::post('/bookings/{booking}/swap/quote', [BookingSwapController::class, 'quote'])->name('bookings.swap.quote')->middleware('throttle:60,1');
+    Route::post('/bookings/{booking}/swap', [BookingSwapController::class, 'submit'])->name('bookings.swap.submit')->middleware('throttle:10,1');
 });
 
 // Chat routes (API-like, for the widget)
@@ -133,11 +155,20 @@ Route::middleware(['auth', 'verified', 'role:admin', 'throttle:300,1'])->prefix(
     Route::get('/bookings/{booking}/invoice', [AdminBookingController::class, 'invoice'])->name('bookings.invoice');
     Route::get('/bookings/{booking}/checkout', [AdminBookingController::class, 'checkout'])->name('bookings.checkout');
     Route::get('/bookings/{booking}/edit', [AdminBookingController::class, 'edit'])->name('bookings.edit');
-    Route::patch('/bookings/{booking}', [AdminBookingController::class, 'update'])->name('bookings.update');
-    Route::match(['post', 'patch'], '/bookings/{booking}/status', [AdminBookingController::class, 'updateStatus'])->name('bookings.status');
+    Route::patch('/bookings/{booking}', [AdminBookingController::class, 'update'])->name('bookings.update');    Route::match(['post', 'patch'], '/bookings/{booking}/status', [AdminBookingController::class, 'updateStatus'])->name('bookings.status');
     Route::post('/bookings/{booking}/payments', [AdminBookingController::class, 'recordPayment'])->name('bookings.payments.store');
     Route::patch('/bookings/{booking}/payments/{payment}', [AdminBookingController::class, 'updatePayment'])->name('bookings.payments.update');
     Route::patch('/bookings/{booking}/modify', [AdminBookingController::class, 'modify'])->name('bookings.modify');
+
+    // Admin - Rental Extension
+    Route::get('/bookings/{booking}/extend', [BookingExtensionController::class, 'page'])->name('bookings.extend.page');
+    Route::post('/bookings/{booking}/extend/quote', [BookingExtensionController::class, 'quote'])->name('bookings.extend.quote');
+    Route::post('/bookings/{booking}/extend', [BookingExtensionController::class, 'submit'])->name('bookings.extend.submit');
+
+    // Admin - Vehicle Swap
+    Route::get('/bookings/{booking}/swap', [BookingSwapController::class, 'page'])->name('bookings.swap.page');
+    Route::post('/bookings/{booking}/swap/quote', [BookingSwapController::class, 'quote'])->name('bookings.swap.quote');
+    Route::post('/bookings/{booking}/swap', [BookingSwapController::class, 'submit'])->name('bookings.swap.submit');
 
     // Admin - Reservations
     Route::get('/reservations', [AdminReservationController::class, 'index'])->name('reservations.index');

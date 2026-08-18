@@ -48,8 +48,15 @@ class CarController extends Controller
 
         $cars = $query->orderBy($sortField, $sortDirection)->paginate(15);
 
+        $stats = [
+            'total' => Car::count(),
+            'available' => Car::available()->count(),
+            'rented' => Car::whereHas('bookings', fn ($q) => $q->active())->count(),
+        ];
+
         return Inertia::render('Admin/Cars/Index', [
             'cars' => $cars,
+            'stats' => $stats,
             'filters' => [
                 'search' => $search,
                 'sort_field' => $sortField,
@@ -219,7 +226,7 @@ class CarController extends Controller
         return redirect()->route('admin.cars.index')->with('success', 'Car deleted successfully.');
     }
 
-    public function schedule()
+    public function schedule(Request $request)
     {
         $cars = Car::with(['bookings' => function ($q) {
             $q->whereIn('status', ['pending', 'confirmed', 'active'])
@@ -241,6 +248,7 @@ class CarController extends Controller
             'cars' => $cars,
             'locations' => $locations,
             'bookingTerms' => $bookingTerms,
+            'initialCarId' => $request->integer('car') ?: null,
         ]);
     }
 }

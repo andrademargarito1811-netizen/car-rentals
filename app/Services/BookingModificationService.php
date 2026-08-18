@@ -84,8 +84,9 @@ class BookingModificationService
 
             $newTotal = $price['total'];
 
+            $additionalAmountDue = 0.0;
             if ($booking->total_amount != $newTotal) {
-                $this->handlePaymentDifference($booking, (float) $booking->total_amount, (float) $newTotal);
+                $additionalAmountDue = $this->handlePaymentDifference($booking, (float) $booking->total_amount, (float) $newTotal);
             }
 
             $booking->update([
@@ -137,7 +138,10 @@ class BookingModificationService
                 'user_agent' => request()->userAgent(),
             ]);
 
-            return $booking->fresh();
+            $modified = $booking->fresh();
+            $modified->setAttribute('additional_amount_due', $additionalAmountDue);
+
+            return $modified;
         });
     }
 
@@ -208,16 +212,45 @@ class BookingModificationService
         }
     }
 
-    private function handlePaymentDifference(Booking $booking, float $oldAmount, float $newAmount): void
+    private function handlePaymentDifference(Booking $booking, float $oldAmount, float $newAmount): float
     {
         if (abs($oldAmount - $newAmount) < 0.005) {
-            return;
+            return 0.0;
         }
 
         if ($newAmount > $oldAmount) {
-            Log::info("Booking {$booking->id}: amount increased from {$oldAmount} to {$newAmount} — additional charge needed");
+            $additional = round($newAmount - $oldAmount, 2);
 
-            return;
+            $payment = Payment::create([
+                'booking_id' => $booking->id,
+                'type' => 'remaining',
+                'amount' => $additional,
+                'payment_method' => 'Adjustment',
+                'payment_status' => 'pending',
+                'transaction_id' => 'ADJ-'.strtoupper(Str::random(10)),
+                'metadata' => [
+                    'reason' => 'booking_total_increased',
+                    'old_amount' => $oldAmount,
+                    'new_amount' => $newAmount,
+                    'source' => 'auto',
+                ],
+            ]);
+
+            AuditLog::create([
+                'user_id' => request()->user()?->id,
+                'action' => 'additional_charge_recorded',
+                'model_type' => Payment::class,
+                'model_id' => $payment->id,
+                'description' => "Booking {$booking->reference_code} total increased from \${$oldAmount} to \${$newAmount} — additional charge of \${$additional} recorded as due",
+                'old_values' => ['total_amount' => $oldAmount],
+                'new_values' => ['total_amount' => $newAmount, 'additional_amount' => $additional],
+                'ip_address' => request()->ip(),
+                'user_agent' => request()->userAgent(),
+            ]);
+
+            Log::info("Booking {$booking->id}: amount increased from {$oldAmount} to {$newAmount} — additional charge of {$additional} recorded as due");
+
+            return $additional;
         }
 
         $paid = round((float) $booking->completedPayments()->sum('amount'), 2);
@@ -226,7 +259,7 @@ class BookingModificationService
         if ($overpaid <= 0) {
             Log::info("Booking {$booking->id}: amount decreased from {$oldAmount} to {$newAmount} — no refund needed");
 
-            return;
+            return 0.0;
         }
 
         $payment = Payment::create([
@@ -257,5 +290,7 @@ class BookingModificationService
         ]);
 
         Log::info("Booking {$booking->id}: amount decreased from {$oldAmount} to {$newAmount} — refund of {$overpaid} recorded");
+
+        return 0.0;
     }
 }

@@ -48,6 +48,10 @@ export interface VehicleDamage {
     // over `position` when present.
     x?: number;
     y?: number;
+    // True when the damage was already present before the current rental segment
+    // (carried from a pickup baseline / prior record). Marks without this flag
+    // (or false) are newly-found and therefore chargeable.
+    preexisting?: boolean;
 }
 
 export type CarShape = 'sedan' | 'suv' | 'van' | 'pickup';

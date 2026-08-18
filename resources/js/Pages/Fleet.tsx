@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import GuestLayout from '@/Layouts/GuestLayout';
 import FilterSidebar from '@/Components/FilterSidebar';
-import { Head, Link, usePage } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import { useRoute } from 'ziggy-js';
 import { cn } from '@/lib/utils';
 import { countries as countriesList } from '@/data/countries';
@@ -57,13 +57,42 @@ interface FleetPageSetting {
 }
 
 interface FleetProps {
-    cars: { data: Car[]; links: { url: string | null; label: string; active: boolean }[] };
+    cars: {
+        data: Car[];
+        links: { url: string | null; label: string; active: boolean }[];
+        total?: number;
+    };
+    brandCounts?: Record<string, number>;
+    vehicleTypes?: string[];
+    filters?: {
+        priceRange: { min: number; max: number };
+        yearRange: { min: number; max: number };
+    };
     fleetSettings?: FleetPageSetting;
 }
 
 type FilterKey = 'all' | 'available' | 'top-rated' | 'value';
 type SortKey = 'recommended' | 'price-asc' | 'price-desc' | 'rating';
 type ViewMode = 'grid' | 'list';
+
+const FILTER_PARAM_KEYS = [
+    'filter',
+    'sort',
+    'query',
+    'brand',
+    'vehicle_type',
+    'fuel',
+    'transmission',
+    'min_seats',
+    'min_baggage',
+    'price_min',
+    'price_max',
+    'year_min',
+    'year_max',
+    'match_dates',
+    'start_date',
+    'end_date',
+];
 
 const CAR_IMAGES = [
     'https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=1200&h=900&fit=crop',
@@ -109,19 +138,24 @@ function brandPalette(brand: string) {
     );
 }
 
-const FUEL_OPTIONS = ['Petrol', 'Diesel', 'Electric', 'Hybrid'];
+const FUEL_OPTIONS: { value: string; label: string }[] = [
+    { value: 'gasoline', label: 'Petrol' },
+    { value: 'diesel', label: 'Diesel' },
+    { value: 'electric', label: 'Electric' },
+    { value: 'hybrid', label: 'Hybrid' },
+];
 const TRANSMISSION_OPTIONS = ['Automatic', 'Manual'];
 
 const FUEL_LABELS: Record<string, string> = {
-    Petrol: 'Gasoline',
-    gasoline: 'Gasoline',
-    Gasoline: 'Gasoline',
-    Diesel: 'Diesel',
+    gasoline: 'Petrol',
+    Petrol: 'Petrol',
+    petrol: 'Petrol',
     diesel: 'Diesel',
-    Electric: 'Electric',
+    Diesel: 'Diesel',
     electric: 'Electric',
-    Hybrid: 'Hybrid',
+    Electric: 'Electric',
     hybrid: 'Hybrid',
+    Hybrid: 'Hybrid',
 };
 
 const TRANSMISSION_LABELS: Record<string, string> = {
@@ -3487,11 +3521,14 @@ function BookingPopover({
     );
 }
 
-export default function Fleet({ cars, fleetSettings }: FleetProps) {
+export default function Fleet({ cars, brandCounts: serverBrandCounts, filters, vehicleTypes = [], fleetSettings }: FleetProps) {
     const route = useRoute();
     const page = usePage();
     const heroSettings: HeroSettings | null = (page.props as any)?.heroSettings ?? null;
     const isAuthenticated = !!(page.props as any)?.auth?.user;
+
+    const urlParamsRef = useRef<URLSearchParams | null>(null);
+    const filtersReadyRef = useRef(false);
 
     const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
     const threeDays = useMemo(() => new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10), []);
@@ -3505,8 +3542,12 @@ export default function Fleet({ cars, fleetSettings }: FleetProps) {
     const [fuelFilter, setFuelFilter] = useState<string>('any');
     const [transmissionFilter, setTransmissionFilter] = useState<string>('any');
     const [minSeats, setMinSeats] = useState<number>(0);
+    const [minBaggage, setMinBaggage] = useState<number>(0);
     const [priceMin, setPriceMin] = useState<number>(0);
     const [priceMax, setPriceMax] = useState<number>(500);
+    const [yearMin, setYearMin] = useState<number>(0);
+    const [yearMax, setYearMax] = useState<number>(3000);
+    const [matchDates, setMatchDates] = useState<boolean>(false);
 
     const [selectedCar, setSelectedCar] = useState<Car | null>(null);
     const [pickupLocation, setPickupLocation] = useState<string>(LOCATIONS[0]);
@@ -3522,6 +3563,7 @@ export default function Fleet({ cars, fleetSettings }: FleetProps) {
     useEffect(() => {
         if (typeof window === 'undefined') return;
         const params = new URLSearchParams(window.location.search);
+        urlParamsRef.current = params;
         const pickLoc = params.get('pickup_location');
         const retLoc = params.get('return_location');
         const pickDate = params.get('pickup_date');
@@ -3536,6 +3578,37 @@ export default function Fleet({ cars, fleetSettings }: FleetProps) {
         if (pickTime) setPickupTime(pickTime);
         if (retTime) setReturnTime(retTime);
         if (c) setCountry(c);
+
+        const validSorts = ['recommended', 'price-asc', 'price-desc', 'rating'];
+        const validPresets = ['all', 'available', 'top-rated', 'value'];
+        const s = params.get('sort');
+        if (s && validSorts.includes(s)) setSort(s as SortKey);
+        const p = params.get('filter');
+        if (p && validPresets.includes(p)) setFilter(p as FilterKey);
+        const q = params.get('query');
+        if (q != null) setQuery(q);
+        const b = params.get('brand');
+        if (b && b !== 'all') setBrand(b);
+        const vt = params.get('vehicle_type');
+        if (vt && vt !== 'any') setVehicleType(vt);
+        const fu = params.get('fuel');
+        if (fu) setFuelFilter(fu);
+        const tr = params.get('transmission');
+        if (tr) setTransmissionFilter(tr);
+        const ms = Number(params.get('min_seats'));
+        if (ms > 0) setMinSeats(ms);
+        const mb = Number(params.get('min_baggage'));
+        if (mb > 0) setMinBaggage(mb);
+        const pm = Number(params.get('price_min'));
+        if (pm > 0) setPriceMin(pm);
+        const px = Number(params.get('price_max'));
+        if (px > 0) setPriceMax(px);
+        const ym = Number(params.get('year_min'));
+        if (ym > 0) setYearMin(ym);
+        const yx = Number(params.get('year_max'));
+        if (yx > 0) setYearMax(yx);
+        if (params.get('match_dates') === '1') setMatchDates(true);
+        filtersReadyRef.current = true;
     }, []);
 
     useEffect(() => {
@@ -3544,9 +3617,13 @@ export default function Fleet({ cars, fleetSettings }: FleetProps) {
     }, []);
 
     const brands = useMemo(() => {
-        const set = new Set(cars.data.map((c) => c.brand));
+        const serverKeys = Object.keys(serverBrandCounts ?? {}).filter((b) => b !== 'all');
+        const set = new Set<string>(serverKeys);
+        if (set.size === 0) {
+            cars.data.forEach((c) => set.add(c.brand));
+        }
         return ['all', ...Array.from(set).sort()];
-    }, [cars.data]);
+    }, [serverBrandCounts, cars.data]);
 
     const featured = useMemo(() => {
         return [...cars.data]
@@ -3560,75 +3637,83 @@ export default function Fleet({ cars, fleetSettings }: FleetProps) {
     }, [cars.data]);
 
     const priceRange = useMemo(() => {
+        if (filters?.priceRange) return filters.priceRange;
         if (cars.data.length === 0) return { min: 0, max: 500 };
         const rates = cars.data.map((c) => Number(c.daily_rate));
         return { min: Math.floor(Math.min(...rates)), max: Math.ceil(Math.max(...rates)) };
-    }, [cars.data]);
+    }, [filters, cars.data]);
+
+    const yearRange = useMemo(() => {
+        if (filters?.yearRange) return filters.yearRange;
+        const currentYear = new Date().getFullYear();
+        if (cars.data.length === 0) return { min: currentYear - 10, max: currentYear };
+        const years = cars.data.map((c) => Number(c.year)).filter((y) => y > 0);
+        if (years.length === 0) return { min: currentYear - 10, max: currentYear };
+        return { min: Math.min(...years), max: Math.max(...years) };
+    }, [filters, cars.data]);
 
     useEffect(() => {
-        setPriceMin(priceRange.min);
-        setPriceMax(priceRange.max);
+        if (urlParamsRef.current?.get('price_min') == null) setPriceMin(priceRange.min);
+        if (urlParamsRef.current?.get('price_max') == null) setPriceMax(priceRange.max);
     }, [priceRange.min, priceRange.max]);
 
-    const filteredCars = useMemo(() => {
-        let list = [...cars.data];
-        if (brand !== 'all') list = list.filter((c) => c.brand === brand);
-        if (query.trim()) {
-            const q = query.toLowerCase();
-            list = list.filter(
-                (c) => c.brand.toLowerCase().includes(q) || c.model.toLowerCase().includes(q),
-            );
+    useEffect(() => {
+        if (urlParamsRef.current?.get('year_min') == null) setYearMin(yearRange.min);
+        if (urlParamsRef.current?.get('year_max') == null) setYearMax(yearRange.max);
+    }, [yearRange.min, yearRange.max]);
+
+    const buildFleetParams = useCallback(() => {
+        const params = new URLSearchParams();
+        if (filter !== 'all') params.set('filter', filter);
+        if (sort !== 'recommended') params.set('sort', sort);
+        if (query.trim()) params.set('query', query.trim());
+        if (brand !== 'all') params.set('brand', brand);
+        if (vehicleType !== 'any') params.set('vehicle_type', vehicleType);
+        if (fuelFilter !== 'any') params.set('fuel', fuelFilter);
+        if (transmissionFilter !== 'any') params.set('transmission', transmissionFilter);
+        if (minSeats > 0) params.set('min_seats', String(minSeats));
+        if (minBaggage > 0) params.set('min_baggage', String(minBaggage));
+        if (priceMin > priceRange.min || priceMax < priceRange.max) {
+            params.set('price_min', String(priceMin));
+            params.set('price_max', String(priceMax));
         }
-        switch (filter) {
-            case 'available':
-                list = list.filter((c) => c.booked_dates.filter((b) => b.status === 'full').length === 0);
-                break;
-            case 'top-rated':
-                list = list.filter((c) => c.avg_rating >= 4.5 && c.ratings_count >= 3);
-                break;
-            case 'value':
-                list = list.filter((c) => c.daily_rate <= 80);
-                break;
+        if (yearMin > yearRange.min || yearMax < yearRange.max) {
+            params.set('year_min', String(yearMin));
+            params.set('year_max', String(yearMax));
         }
-        if (vehicleType !== 'any') {
-            list = list.filter((c) => c.vehicle_type === vehicleType);
+        if (matchDates) {
+            params.set('match_dates', '1');
+            params.set('start_date', startDate);
+            params.set('end_date', endDate);
         }
-        if (fuelFilter !== 'any') {
-            list = list.filter((c) => {
-                const ft = c.fuel_type.toLowerCase();
-                const ff = fuelFilter.toLowerCase();
-                return ft === ff || (ft === 'gasoline' && ff === 'petrol') || (ft === 'petrol' && ff === 'gasoline');
+        return params;
+    }, [filter, sort, query, brand, vehicleType, fuelFilter, transmissionFilter, minSeats, minBaggage, priceMin, priceMax, yearMin, yearMax, matchDates, priceRange.min, priceRange.max, yearRange.min, yearRange.max, startDate, endDate]);
+
+    useEffect(() => {
+        if (!filtersReadyRef.current) return;
+        const params = buildFleetParams();
+        const current = new URLSearchParams(window.location.search);
+        let changed = false;
+        for (const key of FILTER_PARAM_KEYS) {
+            if ((params.get(key) ?? '') !== (current.get(key) ?? '')) {
+                changed = true;
+                break;
+            }
+        }
+        if (!changed) return;
+        const timer = window.setTimeout(() => {
+            const obj: Record<string, string> = {};
+            params.forEach((v: string, k: string) => {
+                obj[k] = v;
             });
-        }
-        if (transmissionFilter !== 'any') {
-            list = list.filter((c) => c.transmission.toLowerCase() === transmissionFilter.toLowerCase());
-        }
-        if (minSeats > 0) {
-            list = list.filter((c) => c.seats >= minSeats);
-        }
-        list = list.filter((c) => Number(c.daily_rate) >= priceMin && Number(c.daily_rate) <= priceMax);
-        switch (sort) {
-            case 'price-asc':
-                return list.sort((a, b) => a.daily_rate - b.daily_rate);
-            case 'price-desc':
-                return list.sort((a, b) => b.daily_rate - a.daily_rate);
-            case 'rating':
-                return list.sort((a, b) => b.avg_rating - a.avg_rating);
-            default:
-                return list.sort((a, b) => {
-                    const aConflict = a.booked_dates.some(
-                        (bd) => bd.status === 'full' && bd.date >= startDate && bd.date <= endDate,
-                    );
-                    const bConflict = b.booked_dates.some(
-                        (bd) => bd.status === 'full' && bd.date >= startDate && bd.date <= endDate,
-                    );
-                    if (aConflict !== bConflict) return aConflict ? 1 : -1;
-                    const scoreA = a.avg_rating * Math.log10((a.ratings_count || 1) + 1);
-                    const scoreB = b.avg_rating * Math.log10((b.ratings_count || 1) + 1);
-                    return scoreB - scoreA;
-                });
-        }
-    }, [cars.data, filter, sort, query, brand, vehicleType, fuelFilter, transmissionFilter, minSeats, priceMin, priceMax, startDate, endDate]);
+            router.get(route('fleet', obj), {}, {
+                preserveState: true,
+                preserveScroll: true,
+                only: ['cars', 'brandCounts', 'filters', 'vehicleTypes'],
+            });
+        }, 250);
+        return () => window.clearTimeout(timer);
+    }, [buildFleetParams]);
 
     const stats = useMemo(() => {
         const total = cars.data.length;
@@ -3640,12 +3725,13 @@ export default function Fleet({ cars, fleetSettings }: FleetProps) {
     }, [cars.data]);
 
     const brandCounts = useMemo(() => {
+        if (serverBrandCounts && Object.keys(serverBrandCounts).length > 0) return serverBrandCounts;
         const counts: Record<string, number> = { all: cars.data.length };
         cars.data.forEach((c) => {
             counts[c.brand] = (counts[c.brand] || 0) + 1;
         });
         return counts;
-    }, [cars.data]);
+    }, [serverBrandCounts, cars.data]);
 
     const cheapCount = useMemo(() => cars.data.filter((c) => c.daily_rate <= 80).length, [cars.data]);
 
@@ -3657,7 +3743,10 @@ export default function Fleet({ cars, fleetSettings }: FleetProps) {
         fuelFilter !== 'any',
         transmissionFilter !== 'any',
         minSeats > 0,
+        minBaggage > 0,
         priceMin > priceRange.min || priceMax < priceRange.max,
+        yearMin > yearRange.min || yearMax < yearRange.max,
+        matchDates,
     ].filter(Boolean).length;
 
     const activeFilters = useMemo(() => {
@@ -3719,13 +3808,26 @@ export default function Fleet({ cars, fleetSettings }: FleetProps) {
         if (fuelFilter !== 'any') {
             chips.push({
                 key: 'fuel',
-                label: fuelFilter,
+                label: FUEL_LABELS[fuelFilter] ?? displayLabel(fuelFilter),
                 icon: (
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" />
                     </svg>
                 ),
                 onRemove: () => setFuelFilter('any'),
+            });
+        }
+        if (minBaggage > 0) {
+            chips.push({
+                key: 'baggage',
+                label: `${minBaggage}+ bags`,
+                icon: (
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <rect x="6" y="7" width="12" height="13" rx="2" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 7V5a2 2 0 012-2h2a2 2 0 012 2v2M6 12h12" />
+                    </svg>
+                ),
+                onRemove: () => setMinBaggage(0),
             });
         }
         if (transmissionFilter !== 'any') {
@@ -3768,9 +3870,36 @@ export default function Fleet({ cars, fleetSettings }: FleetProps) {
                 },
             });
         }
+        if (yearMin > yearRange.min || yearMax < yearRange.max) {
+            chips.push({
+                key: 'year',
+                label: yearMin === yearMax ? `${yearMin}` : `${yearMin}–${yearMax}`,
+                icon: (
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                ),
+                onRemove: () => {
+                    setYearMin(yearRange.min);
+                    setYearMax(yearRange.max);
+                },
+            });
+        }
+        if (matchDates) {
+            chips.push({
+                key: 'availability',
+                label: `Free on my dates`,
+                icon: (
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
+                    </svg>
+                ),
+                onRemove: () => setMatchDates(false),
+            });
+        }
         return chips;
-    }, [filter, brand, query, vehicleType, fuelFilter, transmissionFilter, minSeats, priceMin, priceMax, priceRange.min, priceRange.max]);
-    const showFeatured = filter === 'all' && sort === 'recommended' && !query && brand === 'all' && vehicleType === 'any' && fuelFilter === 'any' && transmissionFilter === 'any' && minSeats === 0;
+    }, [filter, brand, query, vehicleType, fuelFilter, transmissionFilter, minSeats, minBaggage, priceMin, priceMax, yearMin, yearMax, matchDates, priceRange.min, priceRange.max, yearRange.min, yearRange.max]);
+    const showFeatured = filter === 'all' && sort === 'recommended' && !query && brand === 'all' && vehicleType === 'any' && fuelFilter === 'any' && transmissionFilter === 'any' && minSeats === 0 && minBaggage === 0 && !matchDates && yearMin === yearRange.min && yearMax === yearRange.max;
 
     const resetFilters = () => {
         setFilter('all');
@@ -3780,8 +3909,12 @@ export default function Fleet({ cars, fleetSettings }: FleetProps) {
         setFuelFilter('any');
         setTransmissionFilter('any');
         setMinSeats(0);
+        setMinBaggage(0);
         setPriceMin(priceRange.min);
         setPriceMax(priceRange.max);
+        setYearMin(yearRange.min);
+        setYearMax(yearRange.max);
+        setMatchDates(false);
     };
 
     const handleSelectToggle = (car: Car) => {
@@ -3798,6 +3931,12 @@ export default function Fleet({ cars, fleetSettings }: FleetProps) {
     const [bookingTaxItems, setBookingTaxItems] = useState<{ id: number; amount: number; add_or_minus: boolean }[]>([]);
     const bookingNetTax = bookingTaxItems.reduce((sum, t) => sum + (t.add_or_minus ? t.amount : -t.amount), 0);
     const bookingTotal = bookingSubtotal + bookingNetTax;
+
+    const availabilityLabel = useMemo(() => {
+        const fmt = (d: string) =>
+            new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        return `${fmt(startDate)} – ${fmt(endDate)}`;
+    }, [startDate, endDate]);
 
     useEffect(() => {
         if (!selectedCar?.id || !bookingBillable) return;
@@ -4073,6 +4212,20 @@ export default function Fleet({ cars, fleetSettings }: FleetProps) {
                         />
                     </div>
 
+                    <div className="relative z-20 mb-4">
+                        <div className="flex items-center gap-2 overflow-x-auto pb-1.5 -mx-1 px-1">
+                            {brands.map((b) => (
+                                <BrandChip
+                                    key={b}
+                                    brand={b}
+                                    count={brandCounts[b] ?? 0}
+                                    isActive={brand === b}
+                                    onClick={() => setBrand(b)}
+                                />
+                            ))}
+                        </div>
+                    </div>
+
                     <div className="relative z-20 flex flex-col sm:flex-row sm:items-center sm:justify-end gap-3 mb-6 sm:mb-8">
                         {/* Right: Active filter chips + Sort + View */}
                         <div className="flex items-center gap-3 flex-wrap justify-end">
@@ -4176,14 +4329,26 @@ export default function Fleet({ cars, fleetSettings }: FleetProps) {
                                             priceMax,
                                             priceRangeMin: priceRange.min,
                                             priceRangeMax: priceRange.max,
+                                            yearMin,
+                                            yearMax,
+                                            yearRangeMin: yearRange.min,
+                                            yearRangeMax: yearRange.max,
+                                            minBaggage,
+                                            matchDates,
                                         }}
-                                        filteredCount={filteredCars.length}
+                                        filteredCount={cars.total ?? cars.data.length}
+                                        vehicleTypes={vehicleTypes}
                                         onVehicleTypeChange={setVehicleType}
                                         onFuelFilterChange={setFuelFilter}
                                         onTransmissionFilterChange={setTransmissionFilter}
                                         onMinSeatsChange={setMinSeats}
                                         onPriceMinChange={setPriceMin}
                                         onPriceMaxChange={setPriceMax}
+                                        onYearMinChange={setYearMin}
+                                        onYearMaxChange={setYearMax}
+                                        onMinBaggageChange={setMinBaggage}
+                                        onAvailabilityChange={setMatchDates}
+                                        availabilityLabel={availabilityLabel}
                                         onReset={resetFilters}
                                         onApply={() => {
                                             const grid = document.getElementById('fleet-grid');
@@ -4204,10 +4369,10 @@ export default function Fleet({ cars, fleetSettings }: FleetProps) {
                                 />
                             )}
 
-                            {filteredCars.length > 0 ? (
+                            {cars.data.length > 0 ? (
                                 view === 'grid' ? (
                                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 sm:gap-6">
-                                        {filteredCars.map((car, i) => (
+                                        {cars.data.map((car, i) => (
                                             <CarCard
                                                 key={car.id}
                                                 car={car}
@@ -4226,7 +4391,7 @@ export default function Fleet({ cars, fleetSettings }: FleetProps) {
                                     </div>
                                 ) : (
                                     <div className="flex flex-col gap-4">
-                                        {filteredCars.map((car, i) => (
+                                        {cars.data.map((car, i) => (
                                             <CarCard
                                                 key={car.id}
                                                 car={car}
@@ -4414,11 +4579,11 @@ function MoreFiltersBar({
                             <PillButton active={fuelFilter === 'any'} onClick={() => setFuelFilter('any')}>Any</PillButton>
                             {FUEL_OPTIONS.map((f) => (
                                 <PillButton
-                                    key={f}
-                                    active={fuelFilter === f}
-                                    onClick={() => setFuelFilter(f)}
+                                    key={f.value}
+                                    active={fuelFilter === f.value}
+                                    onClick={() => setFuelFilter(f.value)}
                                 >
-                                    {f}
+                                    {f.label}
                                 </PillButton>
                             ))}
                         </div>

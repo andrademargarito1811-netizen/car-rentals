@@ -141,8 +141,13 @@ class BookingController extends Controller
     public function guestShow(string $reference)
     {
         $booking = Booking::where('reference_code', $reference)
-            ->with(['car', 'guest', 'payment', 'couponUsage', 'bookingTaxes', 'pickupLocation', 'returnLocation', 'pickupHandover', 'returnHandover', 'extraCharges'])
+            ->with(['car', 'guest', 'payment', 'couponUsage', 'bookingTaxes', 'pickupLocation', 'returnLocation', 'pickupHandover', 'returnHandover', 'extraCharges', 'swaps.fromCar', 'swaps.toCar'])
             ->firstOrFail();
+
+        $booking->setAttribute('extension_source', $booking->extensionSource());
+        $booking->setAttribute('extension_children', $booking->extensionChildren());
+        $booking->setAttribute('total_paid', $booking->totalPaid());
+        $booking->setAttribute('swap_segments', $booking->swapSegments());
 
         return Inertia::render('Bookings/GuestShow', [
             'booking' => $booking,
@@ -175,7 +180,7 @@ class BookingController extends Controller
                     $query->where('email', $validated['email']);
                 });
             })
-            ->with(['car', 'guest', 'payment', 'couponUsage', 'bookingTaxes', 'pickupLocation', 'returnLocation', 'pickupHandover', 'returnHandover', 'extraCharges'])
+            ->with(['car', 'guest', 'payment', 'couponUsage', 'bookingTaxes', 'pickupLocation', 'returnLocation', 'pickupHandover', 'returnHandover', 'extraCharges', 'swaps.fromCar', 'swaps.toCar'])
             ->first();
 
         if (! $booking) {
@@ -183,6 +188,11 @@ class BookingController extends Controller
                 'email' => 'No booking found with the provided email and reservation number.',
             ])->onlyInput('email');
         }
+
+        $booking->setAttribute('extension_source', $booking->extensionSource());
+        $booking->setAttribute('extension_children', $booking->extensionChildren());
+        $booking->setAttribute('total_paid', $booking->totalPaid());
+        $booking->setAttribute('swap_segments', $booking->swapSegments());
 
         return Inertia::render('Bookings/GuestShow', [
             'booking' => $booking,
@@ -313,12 +323,18 @@ class BookingController extends Controller
     public function modify(ModifyBookingRequest $request, Booking $booking, BookingModificationService $modificationService)
     {
         try {
-            $modificationService->modify($booking, $request->validated());
+            $modified = $modificationService->modify($booking, $request->validated());
 
             try {
                 event(new BookingUpdated($booking));
             } catch (\Throwable $e) {
                 Log::warning('Broadcast failed for modified booking: '.$e->getMessage());
+            }
+
+            $success = 'Booking modified successfully.';
+            $additionalDue = (float) ($modified->additional_amount_due ?? 0);
+            if ($additionalDue > 0) {
+                $success .= ' Additional balance of $'.number_format($additionalDue, 2).' is now due.';
             }
 
             if ($request->wantsJson() || $request->expectsJson()) {
@@ -333,7 +349,7 @@ class BookingController extends Controller
             $param = $booking->user_id ? $booking->id : $booking->reference_code;
 
             return redirect()->route($route, $param)
-                ->with('success', 'Booking modified successfully.');
+                ->with('success', $success);
         } catch (\Exception $e) {
             Log::error('Booking modification failed', [
                 'booking_id' => $booking->id,

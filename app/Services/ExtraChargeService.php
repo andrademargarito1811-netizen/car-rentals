@@ -58,7 +58,7 @@ class ExtraChargeService
                 continue;
             }
             $taxRate = $bookingTax->tax;
-            if (! $taxRate || $taxRate->value_in !== 'Percentage' || $taxRate->calculation !== 'Per Rental') {
+            if (! $taxRate || ! $taxRate->is_active || $taxRate->value_in !== 'Percentage' || $taxRate->calculation !== 'Per Rental') {
                 continue;
             }
             $tax += $chargeAmount * (float) $taxRate->rate / 100;
@@ -131,12 +131,18 @@ class ExtraChargeService
     protected function resolve(Booking $booking, array $selected): array
     {
         $entries = [];
+        $seen = [];
 
         foreach ($selected as $item) {
             $id = is_array($item) ? ($item['id'] ?? null) : $item;
             if (! $id) {
                 continue;
             }
+
+            if (isset($seen[$id])) {
+                continue;
+            }
+            $seen[$id] = true;
 
             $charge = ExtraCharge::where('is_active', true)->find($id);
             if (! $charge) {

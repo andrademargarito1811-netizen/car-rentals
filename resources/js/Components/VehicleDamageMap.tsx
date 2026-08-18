@@ -1007,6 +1007,7 @@ export default function VehicleDamageMap({
                 y,
                 note: note.trim() ? note.trim() : undefined,
                 photo: photo ?? undefined,
+                preexisting: false,
             },
         ]);
         if (!markContinue) {
@@ -1124,7 +1125,9 @@ export default function VehicleDamageMap({
             </div>
 
             <div className={`flex flex-col gap-3 ${stacked ? '' : 'lg:flex-row lg:items-stretch'}`}>
-                <div className={`mx-auto w-full ${DIAGRAM_SIZES[size]} shrink-0 lg:mx-0`}>
+                <div className={stacked
+                    ? 'w-full shrink-0'
+                    : `mx-auto w-full ${DIAGRAM_SIZES[size]} shrink-0 lg:mx-0`}>
                     <div className="rounded-xl border bg-muted/20 p-4">
                         <div className="flex shrink-0 items-center justify-center gap-2">
                             <p className="text-[11px] font-medium text-foreground">

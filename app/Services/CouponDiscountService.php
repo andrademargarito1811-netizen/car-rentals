@@ -53,7 +53,7 @@ class CouponDiscountService
         switch ($typeName) {
             case 'Percentage':
                 $type = 'percent';
-                $discount = round($subtotal * $minRate / 100, 2);
+                $discount = round(min($subtotal * $minRate / 100, $subtotal), 2);
                 $label = $minRate.'% off';
                 break;
 
@@ -74,6 +74,9 @@ class CouponDiscountService
                 $discount = round(min((int) $minRate, $billingDays) * $dailyRate, 2);
                 $label = (int) $minRate.' day(s) free';
                 break;
+
+            default:
+                return $this->invalid('Unsupported coupon type.');
         }
 
         return [

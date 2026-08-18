@@ -34,6 +34,7 @@ class BookingStatusService
         private HandoverChargeCalculator $calculator,
         private CheckoutDriverService $driverService,
         private ExtraChargeService $extraChargeService,
+        private EarlyReturnProrationService $prorationService,
     ) {}
 
     /**
@@ -54,20 +55,33 @@ class BookingStatusService
             throw new BookingStatusException('A pickup handover (fuel level and odometer at pickup) must be recorded before completing this booking.');
         }
 
-        // Pending fuel/mileage + extra charges feed the payment-amount rules.
+        // Pending fuel/mileage + extra charges (and early-return proration) feed
+        // the payment-amount rules.
         $pendingCharges = 0.0;
         $handoverCharges = null;
         $returnHandover = null;
+        $proratedBase = null;
         if ($currentStatus === 'active' && $request->input('status') === 'completed') {
             $returnHandover = new VehicleHandover;
             $returnHandover->booking_id = $booking->id;
+            $returnHandover->car_id = $booking->car_id;
             $returnHandover->type = 'return';
             $returnHandover->fuel_level = $request->input('return_fuel');
             $returnHandover->odometer = $request->input('return_odometer');
+            if ($request->filled('returned_at')) {
+                $returnHandover->returned_at = $request->input('returned_at');
+            }
 
-            $handoverCharges = $this->calculator->calculate($booking, $pickupHandover, $returnHandover);
+            $handoverCharges = $this->calculator->calculate($booking, $returnHandover);
             $extraChargesPreview = $this->extraChargeService->previewTotal($booking, $request->input('extra_charges', []));
-            $pendingCharges = (float) $handoverCharges['total'] + $extraChargesPreview;
+
+            $proratedBase = $this->prorationService->proratedBase($booking, $returnHandover);
+            $additions = (float) $handoverCharges['total'] + $extraChargesPreview;
+            $prorationDelta = $proratedBase !== null
+                ? round($proratedBase - (float) $booking->total_amount, 2)
+                : 0.0;
+
+            $pendingCharges = round($additions + $prorationDelta, 2);
         }
 
         $validated = $request->validate(
@@ -78,7 +92,7 @@ class BookingStatusService
             throw new BookingStatusException("Cannot transition from '{$currentStatus}' to '{$validated['status']}'.");
         }
 
-        DB::transaction(function () use ($request, $booking, $validated, $currentStatus, $handoverCharges, $returnHandover) {
+        DB::transaction(function () use ($request, $booking, $validated, $currentStatus, $handoverCharges, $returnHandover, $proratedBase) {
             // Record downpayment when confirming.
             if ($validated['status'] === 'confirmed' && $currentStatus !== 'confirmed') {
                 Payment::create([
@@ -137,7 +151,7 @@ class BookingStatusService
 
             // Record return handover and apply fuel/mileage + extra charges when the guest returns the car.
             if ($validated['status'] === 'completed' && $currentStatus === 'active' && $returnHandover) {
-                $this->recordReturnHandover($request, $booking, $returnHandover, $validated, $handoverCharges);
+                $this->recordReturnHandover($request, $booking, $returnHandover, $validated, $handoverCharges, $proratedBase);
             }
 
             $booking->update(['status' => $validated['status']]);
@@ -208,7 +222,7 @@ class BookingStatusService
             $requiresDriver = ! $booking->driver_id;
             $rules['driver_first_name'] = $requiresDriver ? 'required|string|max:255' : 'nullable|string|max:255';
             $rules['driver_last_name'] = $requiresDriver ? 'required|string|max:255' : 'nullable|string|max:255';
-            $rules['driver_birth_date'] = ($requiresDriver ? 'required|' : 'nullable|').'date|before:'.now()->subYears(18)->format('Y-m-d');
+            $rules['driver_birth_date'] = ($requiresDriver ? 'required|' : 'nullable|').'date|before_or_equal:'.now()->subYears(18)->format('Y-m-d');
             $rules['license_number'] = $requiresDriver ? 'required|string|max:255' : 'nullable|string|max:255';
             $rules['license_category'] = $requiresDriver ? 'required|string|max:50' : 'nullable|string|max:50';
             $rules['license_expiry'] = ($requiresDriver ? 'required|' : 'nullable|').'date|after:today';
@@ -219,6 +233,11 @@ class BookingStatusService
             $rules['return_fuel'] = 'required|integer|min:0|max:8';
             $rules['return_odometer'] = 'required|numeric|min:'.(float) $pickupHandover->odometer;
             $rules['return_notes'] = 'nullable|string|max:1000';
+            $rules['returned_at'] = ['nullable', 'date', function ($attribute, $value, $fail) use ($pickupHandover) {
+                if ($value && $pickupHandover?->captured_at && strtotime($value) < $pickupHandover->captured_at->getTimestamp()) {
+                    $fail('The return date/time cannot be before the pickup time.');
+                }
+            }];
             // Require an explicit acknowledgement when no damage is marked.
             $rules['no_damage'] = [function ($attribute, $value, $fail) use ($request) {
                 if (empty($request->input('return_damages')) && ! filter_var($value, FILTER_VALIDATE_BOOLEAN)) {
@@ -341,11 +360,15 @@ class BookingStatusService
             if ($photo) {
                 $pickupDamages[$index]['photo'] = $photo->store('damage-photos', 'public');
             }
+            // Damage found at pickup pre-dates the rental, so it is not the
+            // renter's liability.
+            $pickupDamages[$index]['preexisting'] = true;
         }
 
         VehicleHandover::updateOrCreate(
             ['booking_id' => $booking->id, 'type' => 'pickup'],
             [
+                'car_id' => $booking->car_id,
                 'fuel_level' => $validated['pickup_fuel'],
                 'odometer' => $validated['pickup_odometer'],
                 'notes' => $validated['pickup_notes'] ?? null,
@@ -356,7 +379,7 @@ class BookingStatusService
         );
     }
 
-    private function recordReturnHandover(Request $request, Booking $booking, VehicleHandover $returnHandover, array $validated, array $handoverCharges): void
+    private function recordReturnHandover(Request $request, Booking $booking, VehicleHandover $returnHandover, array $validated, array $handoverCharges, ?float $proratedBase): void
     {
         $returnDamages = $validated['return_damages'] ?? [];
         foreach ($returnDamages as $index => $damage) {
@@ -364,10 +387,13 @@ class BookingStatusService
             if ($photo) {
                 $returnDamages[$index]['photo'] = $photo->store('damage-photos', 'public');
             }
+            // Marks recorded at return are newly-found and therefore chargeable.
+            $returnDamages[$index]['preexisting'] = false;
         }
 
         $returnHandover->notes = $validated['return_notes'] ?? null;
         $returnHandover->damages = $returnDamages;
+        $returnHandover->returned_at = $validated['returned_at'] ?? null;
         $returnHandover->captured_by = auth()->id();
         $returnHandover->captured_at = now();
         $returnHandover->save();
@@ -380,10 +406,15 @@ class BookingStatusService
 
         $totalCharges = round((float) $handoverCharges['total'] + (float) $extraChargesResult['total'], 2);
 
+        $base = $proratedBase !== null ? $proratedBase : (float) $booking->total_amount;
+        $newTotal = round($base + $totalCharges, 2);
+
         $booking->update([
             'handover_charges' => $handoverCharges,
-            'total_amount' => round((float) $booking->total_amount + $totalCharges, 2),
+            'total_amount' => $newTotal,
         ]);
+
+        $this->refundOverpayment($booking, $request);
 
         if (! empty($extraChargesResult['charges'])) {
             AuditLog::create([
@@ -393,12 +424,52 @@ class BookingStatusService
                 'model_id' => $booking->id,
                 'description' => 'Extra charges applied at return for booking '.$booking->reference_code.': '.
                     collect($extraChargesResult['charges'])->map(fn ($c) => $c->name.' ($'.number_format((float) $c->amount + (float) $c->tax_amount, 2).')')->implode(', '),
-                'old_values' => ['total_amount' => round((float) $booking->total_amount - $totalCharges, 2)],
+                'old_values' => ['total_amount' => round($base, 2)],
                 'new_values' => ['total_amount' => $booking->total_amount],
                 'ip_address' => $request->ip(),
                 'user_agent' => $request->userAgent(),
             ]);
         }
+    }
+
+    /**
+     * When proration lowers the total below what has already been collected,
+     * record the difference as a completed refund so the booking settles to the
+     * prorated amount without staff intervention.
+     */
+    private function refundOverpayment(Booking $booking, Request $request): void
+    {
+        $paid = round((float) $booking->totalPaid(), 2);
+        $overpaid = round($paid - (float) $booking->total_amount, 2);
+
+        if ($overpaid <= 0) {
+            return;
+        }
+
+        $payment = Payment::create([
+            'booking_id' => $booking->id,
+            'type' => 'refund',
+            'amount' => -$overpaid,
+            'payment_method' => 'Adjustment',
+            'payment_status' => 'completed',
+            'transaction_id' => 'ADJ-'.strtoupper(Str::random(10)),
+            'metadata' => [
+                'reason' => 'early_return_proration',
+                'source' => 'auto',
+            ],
+        ]);
+
+        AuditLog::create([
+            'user_id' => auth()->id(),
+            'action' => 'refund_recorded',
+            'model_type' => Payment::class,
+            'model_id' => $payment->id,
+            'description' => "Early return proration for booking {$booking->reference_code} — refund of \$".number_format($overpaid, 2).' recorded',
+            'old_values' => [],
+            'new_values' => ['amount' => -$overpaid, 'reason' => 'early_return_proration'],
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+        ]);
     }
 
     private function queueConfirmationEmail(Booking $booking): void
